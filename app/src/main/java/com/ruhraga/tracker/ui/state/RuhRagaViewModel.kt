@@ -1,7 +1,14 @@
 package com.ruhraga.tracker.ui.state
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ruhraga.tracker.prayer.PrayerAlarmScheduler
+import com.ruhraga.tracker.prayer.PrayerNotificationHelper
+import com.ruhraga.tracker.prayer.PrayerTimeCalculator
+import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,19 +17,182 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class RuhRagaViewModel : ViewModel() {
+class RuhRagaViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _uiState = MutableStateFlow(RuhRagaUiState())
+    private val prefs = application.getSharedPreferences("ruh_raga_prefs", Context.MODE_PRIVATE)
+
+    private val _uiState = MutableStateFlow(
+        RuhRagaUiState(
+            userProfile = loadSavedProfile(),
+            reminderEnabled = prefs.getBoolean("reminder_enabled", true),
+            adhanSoundEnabled = prefs.getBoolean("adhan_sound_enabled", false)
+        )
+    )
     val uiState: StateFlow<RuhRagaUiState> = _uiState.asStateFlow()
 
     private var timerJob: Job? = null
 
+    init {
+        refreshPrayerSchedule()
+        syncAlarmsWithPreferences()
+        startPrayerCountdownTicker()
+    }
+
+    private fun startPrayerCountdownTicker() {
+        viewModelScope.launch {
+            while (true) {
+                delay(30_000L)
+                refreshPrayerSchedule()
+            }
+        }
+    }
+
+    private fun refreshPrayerSchedule() {
+        val now = LocalDateTime.now()
+        val today = now.toLocalDate()
+        val times = PrayerTimeCalculator.calculateForDate(today)
+        val tomorrowTimes = PrayerTimeCalculator.calculateForDate(today.plusDays(1))
+        val next = PrayerTimeCalculator.findNextPrayer(now, times, tomorrowTimes)
+
+        val formattedTimes = mapOf(
+            "subuh" to "${PrayerTimeCalculator.formatTime(times.subuh)} WIB",
+            "dzuhur" to "${PrayerTimeCalculator.formatTime(times.dzuhur)} WIB",
+            "ashar" to "${PrayerTimeCalculator.formatTime(times.ashar)} WIB",
+            "maghrib" to "${PrayerTimeCalculator.formatTime(times.maghrib)} WIB",
+            "isya" to "${PrayerTimeCalculator.formatTime(times.isya)} WIB"
+        )
+
+        _uiState.update { state ->
+            val updatedPrayers = state.prayers.map { prayer ->
+                prayer.copy(
+                    time = formattedTimes[prayer.id] ?: prayer.time,
+                    isActive = prayer.id == next.id
+                )
+            }
+            state.copy(
+                dateLabel = PrayerTimeCalculator.formatDateLabel(today),
+                hijriLabel = PrayerTimeCalculator.formatHijriLabel(today),
+                nextPrayerName = next.name,
+                nextPrayerTime = next.timeFormatted,
+                nextPrayerCountdown = next.countdownLabel,
+                prayers = updatedPrayers
+            )
+        }
+    }
+
+    private fun syncAlarmsWithPreferences() {
+        val app = getApplication<Application>()
+        val state = _uiState.value
+        if (state.reminderEnabled) {
+            PrayerAlarmScheduler.scheduleDailyPrayers(app, state.adhanSoundEnabled)
+        } else {
+            PrayerAlarmScheduler.cancelAll(app)
+        }
+    }
+
+    fun sendTestPrayerNotification() {
+        val state = _uiState.value
+        PrayerNotificationHelper.showPrayerNotification(
+            context = getApplication(),
+            prayerId = "test_${state.nextPrayerName}",
+            prayerName = state.nextPrayerName,
+            prayerTime = state.nextPrayerTime,
+            useAdhanSound = state.adhanSoundEnabled
+        )
+    }
+
+    private fun loadSavedProfile(): UserProfile {
+        val completed = prefs.getBoolean("onboarding_completed", false)
+        return UserProfile(
+            name = prefs.getString("user_name", "") ?: "",
+            age = prefs.getInt("user_age", 25),
+            weightKg = prefs.getFloat("user_weight_kg", 68f),
+            heightCm = prefs.getInt("user_height_cm", 173),
+            isOnboardingCompleted = completed
+        )
+    }
+
+    fun saveUserProfile(
+        name: String,
+        age: Int,
+        weightKg: Float,
+        heightCm: Int
+    ) {
+        val cleanName = name.trim()
+        prefs.edit()
+            .putString("user_name", cleanName)
+            .putInt("user_age", age)
+            .putFloat("user_weight_kg", weightKg)
+            .putInt("user_height_cm", heightCm)
+            .putBoolean("onboarding_completed", true)
+            .apply()
+
+        _uiState.update {
+            it.copy(
+                userProfile = UserProfile(
+                    name = cleanName,
+                    age = age,
+                    weightKg = weightKg,
+                    heightCm = heightCm,
+                    isOnboardingCompleted = true
+                )
+            )
+        }
+    }
+
+    private fun updateAndSyncTodayMatrix(transform: (RuhRagaUiState) -> RuhRagaUiState) {
+        _uiState.update { current ->
+            val updated = transform(current)
+            val todayDay = LocalDate.now().dayOfMonth
+            val ruhPct = updated.ruhCompletionPercent
+            val ragaPct = updated.ragaCompletionPercent
+            val hasRuh = updated.hasRuhActivityToday
+            val hasRaga = updated.hasRagaActivityToday
+
+            val status = when {
+                hasRuh && hasRaga -> DayMatrixStatus.PERFECT_DUAL
+                hasRuh -> DayMatrixStatus.RUH_ONLY
+                hasRaga -> DayMatrixStatus.RAGA_ONLY
+                else -> DayMatrixStatus.REST
+            }
+
+            val summaryParts = buildList {
+                if (updated.completedPrayersCount > 0) add("${updated.completedPrayersCount}/5 Shalat")
+                if (updated.tilawah.isCompletedToday) add("Tilawah")
+                if (updated.totalSessionReps > 0) add("${updated.totalSessionReps} Reps")
+                if (updated.cardioDurationMin > 0) add("${updated.cardioDurationMin}m Cardio")
+            }
+            val summaryText = if (summaryParts.isEmpty()) "Belum ada aktivitas tercatat" else summaryParts.joinToString(", ")
+
+            val updatedMatrix = updated.matrixDays.map { cell ->
+                if (cell.day == todayDay) {
+                    cell.copy(
+                        status = status,
+                        ruhPercent = ruhPct,
+                        ragaPercent = ragaPct,
+                        completionPercent = updated.harmonyPercent,
+                        summary = summaryText
+                    )
+                } else {
+                    cell
+                }
+            }
+            updated.copy(matrixDays = updatedMatrix)
+        }
+    }
+
     fun toggleReminder() {
-        _uiState.update { it.copy(reminderEnabled = !it.reminderEnabled) }
+        val nextValue = !_uiState.value.reminderEnabled
+        prefs.edit().putBoolean("reminder_enabled", nextValue).apply()
+        _uiState.update { it.copy(reminderEnabled = nextValue) }
+        syncAlarmsWithPreferences()
     }
 
     fun toggleAdhanSound() {
-        _uiState.update { it.copy(adhanSoundEnabled = !it.adhanSoundEnabled) }
+        val nextValue = !_uiState.value.adhanSoundEnabled
+        prefs.edit().putBoolean("adhan_sound_enabled", nextValue).apply()
+        _uiState.update { it.copy(adhanSoundEnabled = nextValue) }
+        syncAlarmsWithPreferences()
     }
 
     fun selectIbadahTab(tab: IbadahTab) {
@@ -30,7 +200,7 @@ class RuhRagaViewModel : ViewModel() {
     }
 
     fun togglePrayerCompleted(prayerId: String) {
-        _uiState.update { state ->
+        updateAndSyncTodayMatrix { state ->
             val updated = state.prayers.map { prayer ->
                 if (prayer.id == prayerId) {
                     val nowCompleted = !prayer.isCompleted
@@ -56,8 +226,8 @@ class RuhRagaViewModel : ViewModel() {
     }
 
     fun logNextPendingPrayer() {
-        _uiState.update { state ->
-            val nextPending = state.prayers.firstOrNull { !it.isCompleted } ?: return@update state
+        updateAndSyncTodayMatrix { state ->
+            val nextPending = state.prayers.firstOrNull { !it.isCompleted } ?: return@updateAndSyncTodayMatrix state
             val updated = state.prayers.map { prayer ->
                 if (prayer.id == nextPending.id) {
                     prayer.copy(isCompleted = true, completedAt = "Completed now")
@@ -70,7 +240,7 @@ class RuhRagaViewModel : ViewModel() {
     }
 
     fun toggleSunnahItem(id: String) {
-        _uiState.update { state ->
+        updateAndSyncTodayMatrix { state ->
             val updated = state.sunnahItems.map { item ->
                 if (item.id == id) item.copy(isCompleted = !item.isCompleted) else item
             }
@@ -79,12 +249,13 @@ class RuhRagaViewModel : ViewModel() {
     }
 
     fun toggleTilawahComplete() {
-        _uiState.update { state ->
+        updateAndSyncTodayMatrix { state ->
             val completed = !state.tilawah.isCompletedToday
             state.copy(
                 tilawah = state.tilawah.copy(
                     isCompletedToday = completed,
-                    progressPercent = if (completed) 100 else 27
+                    progressPercent = if (completed) 100 else 0,
+                    currentPage = if (completed) state.tilawah.currentPage.coerceAtLeast(1) else 0
                 )
             )
         }
@@ -109,11 +280,17 @@ class RuhRagaViewModel : ViewModel() {
     }
 
     fun selectExercise(category: ExerciseCategory) {
-        _uiState.update { it.copy(selectedExercise = category) }
+        _uiState.update {
+            it.copy(
+                selectedExercise = category,
+                totalSessionTargetReps = category.targetReps,
+                activeTimerMovement = category.label
+            )
+        }
     }
 
     fun adjustReps(delta: Int) {
-        _uiState.update { state ->
+        updateAndSyncTodayMatrix { state ->
             val updatedReps = (state.currentExerciseReps + delta).coerceAtLeast(0)
             val updatedTotal = (state.totalSessionReps + delta).coerceAtLeast(0)
             state.copy(
@@ -124,19 +301,20 @@ class RuhRagaViewModel : ViewModel() {
     }
 
     fun logSetAndStartRest() {
-        _uiState.update { state ->
+        updateAndSyncTodayMatrix { state ->
+            val repsForSet = state.activeTimerReps.takeIf { it > 0 } ?: 10
             val nextSetIndex = state.completedSets.size + 1
             val newSet = WorkoutSetItem(
                 setNumber = nextSetIndex,
-                reps = 25,
+                reps = repsForSet,
                 restFormatted = "00:45 rest",
                 isDone = true
             )
             state.copy(
                 completedSets = state.completedSets + newSet,
                 currentSetNumber = (nextSetIndex + 1).coerceAtMost(state.totalSetsTarget),
-                currentExerciseReps = state.currentExerciseReps + 25,
-                totalSessionReps = state.totalSessionReps + 25,
+                currentExerciseReps = state.currentExerciseReps + repsForSet,
+                totalSessionReps = state.totalSessionReps + repsForSet,
                 restSecondsRemaining = 45,
                 restTotalSeconds = 45,
                 isRestTimerRunning = true
@@ -187,10 +365,11 @@ class RuhRagaViewModel : ViewModel() {
     }
 
     fun adjustActiveTimerReps(delta: Int) {
-        _uiState.update { state ->
+        updateAndSyncTodayMatrix { state ->
             state.copy(
                 activeTimerReps = (state.activeTimerReps + delta).coerceAtLeast(0),
-                currentExerciseReps = (state.currentExerciseReps + delta).coerceAtLeast(0)
+                currentExerciseReps = (state.currentExerciseReps + delta).coerceAtLeast(0),
+                totalSessionReps = (state.totalSessionReps + delta).coerceAtLeast(0)
             )
         }
     }
@@ -200,19 +379,18 @@ class RuhRagaViewModel : ViewModel() {
     }
 
     fun selectCardioMode(mode: CardioMode) {
-        _uiState.update { state ->
-            when (mode) {
-                CardioMode.RUN -> state.copy(cardioMode = mode, cardioDistanceKm = 3.2f, cardioDurationMin = 15, cardioCalories = 210)
-                CardioMode.JUMP_ROPE -> state.copy(cardioMode = mode, cardioDistanceKm = 1.5f, cardioDurationMin = 12, cardioCalories = 185)
-            }
-        }
+        _uiState.update { it.copy(cardioMode = mode) }
     }
 
     fun logMetabolicFinisher() {
-        _uiState.update { state ->
+        updateAndSyncTodayMatrix { state ->
+            val addDist = if (state.cardioMode == CardioMode.RUN) 1.0f else 0.5f
+            val addMin = 10
+            val addKcal = if (state.cardioMode == CardioMode.RUN) 90 else 120
             state.copy(
-                cardioDurationMin = state.cardioDurationMin + 5,
-                cardioCalories = state.cardioCalories + 65
+                cardioDistanceKm = state.cardioDistanceKm + addDist,
+                cardioDurationMin = state.cardioDurationMin + addMin,
+                cardioCalories = state.cardioCalories + addKcal
             )
         }
     }

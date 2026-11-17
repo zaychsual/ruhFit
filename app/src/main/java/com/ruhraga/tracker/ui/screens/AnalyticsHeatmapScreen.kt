@@ -20,16 +20,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LocalFireDepartment
-import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Mosque
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +52,7 @@ import com.ruhraga.tracker.ui.state.MilestoneItem
 import com.ruhraga.tracker.ui.state.RuhRagaUiState
 import com.ruhraga.tracker.ui.theme.RuhRagaTextStyles
 import com.ruhraga.tracker.ui.theme.RuhRagaTheme
+import java.time.LocalDate
 
 @Composable
 fun AnalyticsHeatmapScreen(
@@ -67,7 +69,7 @@ fun AnalyticsHeatmapScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            AnalyticsHeader(selectedPeriod = state.selectedPeriod)
+            AnalyticsHeader(monthLabel = state.monthlyMonthLabel)
         }
         item {
             PeriodSegmentedControl(
@@ -76,16 +78,17 @@ fun AnalyticsHeatmapScreen(
             )
         }
         item {
-            TotalConsistencyCard(selectedPeriod = state.selectedPeriod)
+            TotalConsistencyCard(state = state)
         }
         item {
-            VolumeMetricsRow()
+            VolumeMetricsRow(state = state)
         }
         item {
-            QuranTilawahSummaryCard()
+            QuranTilawahSummaryCard(state = state)
         }
         item {
             DualDisciplineMatrixCard(
+                monthLabel = state.monthlyMonthLabel,
                 days = state.matrixDays,
                 selectedDay = state.selectedMatrixDay,
                 onSelectDay = onSelectMatrixDay
@@ -104,7 +107,7 @@ fun AnalyticsHeatmapScreen(
 }
 
 @Composable
-private fun AnalyticsHeader(selectedPeriod: AnalyticsPeriod) {
+private fun AnalyticsHeader(monthLabel: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -118,7 +121,7 @@ private fun AnalyticsHeader(selectedPeriod: AnalyticsPeriod) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Harmonizing spirit and kinetic discipline",
+                text = "Dihitung langsung dari aktivitas yang kamu catat",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -131,7 +134,7 @@ private fun AnalyticsHeader(selectedPeriod: AnalyticsPeriod) {
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Text(
-                text = selectedPeriod.label,
+                text = monthLabel,
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -189,22 +192,31 @@ private fun PeriodSegmentedControl(
 }
 
 @Composable
-private fun TotalConsistencyCard(selectedPeriod: AnalyticsPeriod) {
-    val consistencyText = when (selectedPeriod) {
-        AnalyticsPeriod.OCT_2023 -> "94%"
-        AnalyticsPeriod.Q3_REVIEW -> "91%"
-        AnalyticsPeriod.YEAR_2023 -> "89%"
+private fun TotalConsistencyCard(state: RuhRagaUiState) {
+    val consistency = when (state.selectedPeriod) {
+        AnalyticsPeriod.THIS_WEEK -> state.weeklySuccessPercent
+        AnalyticsPeriod.THIS_MONTH, AnalyticsPeriod.ALL_LOG -> state.totalConsistencyPercent
     }
-    val ruhLabel = when (selectedPeriod) {
-        AnalyticsPeriod.OCT_2023 -> "Ruh: 96%"
-        AnalyticsPeriod.Q3_REVIEW -> "Ruh: 93%"
-        AnalyticsPeriod.YEAR_2023 -> "Ruh: 91%"
+    val ruhPct = when (state.selectedPeriod) {
+        AnalyticsPeriod.THIS_WEEK -> state.ruhCompletionPercent
+        AnalyticsPeriod.THIS_MONTH, AnalyticsPeriod.ALL_LOG -> state.avgRuhPercent
     }
-    val ragaLabel = when (selectedPeriod) {
-        AnalyticsPeriod.OCT_2023 -> "Raga: 92%"
-        AnalyticsPeriod.Q3_REVIEW -> "Raga: 89%"
-        AnalyticsPeriod.YEAR_2023 -> "Raga: 87%"
+    val ragaPct = when (state.selectedPeriod) {
+        AnalyticsPeriod.THIS_WEEK -> state.ragaCompletionPercent
+        AnalyticsPeriod.THIS_MONTH, AnalyticsPeriod.ALL_LOG -> state.avgRagaPercent
     }
+
+    val statusText = when {
+        consistency >= 80 -> "Optimal Harmony"
+        consistency >= 40 -> "Building Momentum"
+        consistency > 0 -> "Started Today"
+        else -> "Belum Ada Data"
+    }
+
+    val totalSum = (ruhPct + ragaPct).coerceAtLeast(1)
+    val ruhWeight = (ruhPct.toFloat() / totalSum) * (consistency / 100f)
+    val ragaWeight = (ragaPct.toFloat() / totalSum) * (consistency / 100f)
+    val emptyWeight = (1f - ruhWeight - ragaWeight).coerceAtLeast(0f)
 
     Column(
         modifier = Modifier
@@ -232,14 +244,14 @@ private fun TotalConsistencyCard(selectedPeriod: AnalyticsPeriod) {
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.TrendingUp,
+                    imageVector = Icons.AutoMirrored.Rounded.TrendingUp,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(13.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "+6% vs Sep",
+                    text = "${state.activeLoggedDaysCount} hari aktif",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -248,13 +260,13 @@ private fun TotalConsistencyCard(selectedPeriod: AnalyticsPeriod) {
 
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                text = consistencyText,
+                text = "$consistency%",
                 style = RuhRagaTextStyles.DisplayHero,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "Optimal Harmony",
+                text = statusText,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 6.dp)
@@ -269,19 +281,25 @@ private fun TotalConsistencyCard(selectedPeriod: AnalyticsPeriod) {
                 .background(MaterialTheme.colorScheme.surfaceContainerLowest),
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .weight(0.51f)
-                    .height(8.dp)
-                    .background(MaterialTheme.colorScheme.primary)
-            )
-            Box(
-                modifier = Modifier
-                    .weight(0.43f)
-                    .height(8.dp)
-                    .background(RuhRagaTheme.extendedColors.ragaVibrantOrange)
-            )
-            Spacer(modifier = Modifier.weight(0.06f))
+            if (ruhWeight > 0f) {
+                Box(
+                    modifier = Modifier
+                        .weight(ruhWeight)
+                        .height(8.dp)
+                        .background(MaterialTheme.colorScheme.primary)
+                )
+            }
+            if (ragaWeight > 0f) {
+                Box(
+                    modifier = Modifier
+                        .weight(ragaWeight)
+                        .height(8.dp)
+                        .background(RuhRagaTheme.extendedColors.ragaVibrantOrange)
+                )
+            }
+            if (emptyWeight > 0f) {
+                Spacer(modifier = Modifier.weight(emptyWeight))
+            }
         }
 
         Row(
@@ -297,7 +315,7 @@ private fun TotalConsistencyCard(selectedPeriod: AnalyticsPeriod) {
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = ruhLabel,
+                    text = "Ruh: $ruhPct%",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -311,7 +329,7 @@ private fun TotalConsistencyCard(selectedPeriod: AnalyticsPeriod) {
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = ragaLabel,
+                    text = "Raga: $ragaPct%",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -321,7 +339,10 @@ private fun TotalConsistencyCard(selectedPeriod: AnalyticsPeriod) {
 }
 
 @Composable
-private fun VolumeMetricsRow() {
+private fun VolumeMetricsRow(state: RuhRagaUiState) {
+    val shalatPct = ((state.completedPrayersCount.toFloat() / state.prayers.size.coerceAtLeast(1)) * 100).toInt()
+    val repsTarget = state.selectedExercise.targetReps
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -349,17 +370,17 @@ private fun VolumeMetricsRow() {
                 )
             }
             Text(
-                text = "Shalat On-Time",
+                text = "Shalat Tercatat",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "96.4%",
+                text = "$shalatPct%",
                 style = RuhRagaTextStyles.MetricNumMd,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "155 / 160 Fardh",
+                text = "${state.completedPrayersCount} / ${state.prayers.size} Fardh",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -393,12 +414,12 @@ private fun VolumeMetricsRow() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "2,450",
+                text = "${state.totalSessionReps}",
                 style = RuhRagaTextStyles.MetricNumMd,
                 color = MaterialTheme.colorScheme.secondary
             )
             Text(
-                text = "+380 vs target",
+                text = "Target: $repsTarget reps",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -407,7 +428,8 @@ private fun VolumeMetricsRow() {
 }
 
 @Composable
-private fun QuranTilawahSummaryCard() {
+private fun QuranTilawahSummaryCard(state: RuhRagaUiState) {
+    val t = state.tilawah
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -426,7 +448,7 @@ private fun QuranTilawahSummaryCard() {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.MenuBook,
+                    imageVector = Icons.AutoMirrored.Rounded.MenuBook,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
@@ -440,7 +462,7 @@ private fun QuranTilawahSummaryCard() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "45 Pages (2.2 Juz)",
+                    text = if (t.isCompletedToday) "1 Sesi Selesai" else "Belum Dicatat",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -448,12 +470,12 @@ private fun QuranTilawahSummaryCard() {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = "Pace: 1.5 p/day",
+                text = "${t.progressPercent}% Hari Ini",
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "Surah An-Nisa",
+                text = t.surahTitle,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -463,10 +485,12 @@ private fun QuranTilawahSummaryCard() {
 
 @Composable
 private fun DualDisciplineMatrixCard(
+    monthLabel: String,
     days: List<MatrixDayCell>,
     selectedDay: Int,
     onSelectDay: (Int) -> Unit
 ) {
+    val todayDay = LocalDate.now().dayOfMonth
     val activeCell = days.firstOrNull { it.day == selectedDay } ?: days.first()
     val dualCount = days.count { it.status == DayMatrixStatus.PERFECT_DUAL }
 
@@ -490,7 +514,7 @@ private fun DualDisciplineMatrixCard(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "October 2023 (31 Days)",
+                    text = "$monthLabel (${days.size} Days)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -517,7 +541,6 @@ private fun DualDisciplineMatrixCard(
             }
         }
 
-        // Selected day detail banner
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -540,17 +563,17 @@ private fun DualDisciplineMatrixCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (activeCell.day == 16) "Oct 16 (Today)" else "Oct ${activeCell.day}",
+                        text = if (activeCell.day == todayDay) "Tgl ${activeCell.day} (Today)" else "Tanggal ${activeCell.day}",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = when (activeCell.status) {
-                            DayMatrixStatus.PERFECT_DUAL -> "DUAL S-TIER"
+                            DayMatrixStatus.PERFECT_DUAL -> "DUAL ACTIVE"
                             DayMatrixStatus.RUH_ONLY -> "RUH FOCUS"
                             DayMatrixStatus.RAGA_ONLY -> "RAGA FOCUS"
-                            DayMatrixStatus.REST -> "REST DAY"
+                            DayMatrixStatus.REST -> "NO LOG"
                         },
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary,
@@ -573,7 +596,6 @@ private fun DualDisciplineMatrixCard(
             )
         }
 
-        // Weekday headers
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -592,7 +614,6 @@ private fun DualDisciplineMatrixCard(
             }
         }
 
-        // 7-column Matrix Grid
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             days.chunked(7).forEach { weekRow ->
                 Row(
@@ -656,7 +677,6 @@ private fun DualDisciplineMatrixCard(
             }
         }
 
-        // Matrix Legend
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -689,6 +709,9 @@ private fun MatrixLegendItem(color: Color, label: String) {
 
 @Composable
 private fun WeeklyDualBalanceCard(state: RuhRagaUiState) {
+    val bars = state.weeklyBars
+    val hasAnyData = bars.any { it.ruhPercent > 0f || it.ragaPercent > 0f }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -709,7 +732,8 @@ private fun WeeklyDualBalanceCard(state: RuhRagaUiState) {
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Steady upward trajectory reaching W4 peak",
+                    text = if (hasAnyData) "Grafik diperbarui otomatis dari log mingguanmu"
+                    else "Mulai catat Ibadah & Workout agar grafik terisi",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -730,7 +754,7 @@ private fun WeeklyDualBalanceCard(state: RuhRagaUiState) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom
         ) {
-            state.weeklyBars.forEach { bar ->
+            bars.forEach { bar ->
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Bottom
@@ -754,16 +778,22 @@ private fun WeeklyDualBalanceCard(state: RuhRagaUiState) {
                         Box(
                             modifier = Modifier
                                 .width(14.dp)
-                                .height((82 * bar.ruhPercent).dp)
+                                .height((82 * bar.ruhPercent).coerceAtLeast(4f).dp)
                                 .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
-                                .background(MaterialTheme.colorScheme.primary)
+                                .background(
+                                    if (bar.ruhPercent > 0f) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceContainerHighest
+                                )
                         )
                         Box(
                             modifier = Modifier
                                 .width(14.dp)
-                                .height((82 * bar.ragaPercent).dp)
+                                .height((82 * bar.ragaPercent).coerceAtLeast(4f).dp)
                                 .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
-                                .background(RuhRagaTheme.extendedColors.ragaVibrantOrange)
+                                .background(
+                                    if (bar.ragaPercent > 0f) RuhRagaTheme.extendedColors.ragaVibrantOrange
+                                    else MaterialTheme.colorScheme.surfaceContainerHighest
+                                )
                         )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
@@ -778,33 +808,13 @@ private fun WeeklyDualBalanceCard(state: RuhRagaUiState) {
                 }
             }
         }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.TrendingUp,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = "Weekly correlation: Your workout volume increased by +43% on days Fajr prayer was prayed in Jama'ah.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 
 @Composable
 private fun DisciplineMilestonesSection(milestones: List<MilestoneItem>) {
+    val unlockedCount = milestones.count { it.isUnlocked }
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -818,13 +828,13 @@ private fun DisciplineMilestonesSection(milestones: List<MilestoneItem>) {
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Spiritual tenacity & bodily mastery badges",
+                    text = "Terbuka otomatis sesuai pencapaian harianmu",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
-                text = "3 / 4 Unlocked",
+                text = "$unlockedCount / ${milestones.size} Unlocked",
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -833,10 +843,10 @@ private fun DisciplineMilestonesSection(milestones: List<MilestoneItem>) {
         milestones.forEachIndexed { idx, item ->
             val accent = if (item.isEmerald) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
             val icon = when (idx) {
-                0 -> Icons.Rounded.LocalFireDepartment
-                1 -> Icons.Rounded.WbTwilight
-                2 -> Icons.Rounded.DirectionsRun
-                else -> Icons.Rounded.MenuBook
+                0 -> Icons.Rounded.WbTwilight
+                1 -> Icons.AutoMirrored.Rounded.MenuBook
+                2 -> Icons.AutoMirrored.Rounded.DirectionsRun
+                else -> Icons.Rounded.LocalFireDepartment
             }
 
             Column(
@@ -897,7 +907,14 @@ private fun DisciplineMilestonesSection(milestones: List<MilestoneItem>) {
                         }
                     }
 
-                    if (item.progressLabel != null) {
+                    if (item.isUnlocked) {
+                        Icon(
+                            imageVector = Icons.Rounded.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else if (item.progressLabel != null) {
                         Text(
                             text = item.progressLabel,
                             style = RuhRagaTextStyles.TabularBodyMd.copy(fontWeight = FontWeight.Bold),
@@ -905,9 +922,9 @@ private fun DisciplineMilestonesSection(milestones: List<MilestoneItem>) {
                         )
                     } else {
                         Icon(
-                            imageVector = Icons.Rounded.CheckCircle,
+                            imageVector = Icons.Rounded.RadioButtonUnchecked,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -923,7 +940,7 @@ private fun DisciplineMilestonesSection(milestones: List<MilestoneItem>) {
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(fraction)
+                                .fillMaxWidth(fraction.coerceIn(0f, 1f))
                                 .height(6.dp)
                                 .clip(CircleShape)
                                 .background(accent)

@@ -88,6 +88,10 @@ fun TodayOverviewScreen(
         }
         item {
             UpcomingPrayerCard(
+                prayerName = state.nextPrayerName,
+                prayerTime = state.nextPrayerTime,
+                countdown = state.nextPrayerCountdown,
+                locationLabel = state.locationLabel,
                 reminderEnabled = state.reminderEnabled,
                 adhanSoundEnabled = state.adhanSoundEnabled,
                 onToggleReminder = onToggleReminder,
@@ -151,8 +155,14 @@ private fun GreetingSection(state: RuhRagaUiState) {
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
+        val displayName = state.userProfile.name.ifBlank { "Sahabat" }
+        val weightLabel = if (state.userProfile.weightKg % 1f == 0f) {
+            state.userProfile.weightKg.toInt().toString()
+        } else {
+            state.userProfile.weightKg.toString()
+        }
         Text(
-            text = "Salam, ${state.userName}",
+            text = "Salam, $displayName",
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -161,6 +171,18 @@ private fun GreetingSection(state: RuhRagaUiState) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (state.userProfile.isOnboardingCompleted) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "${state.userProfile.age} th • $weightLabel kg • ${state.userProfile.heightCm} cm",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+        }
     }
 }
 
@@ -377,7 +399,7 @@ private fun DailyEquilibriumCard(state: RuhRagaUiState) {
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "1 Juz Tilawah",
+                        text = if (state.tilawah.isCompletedToday) "Tilawah Selesai" else "0 / 1 Tilawah",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -470,6 +492,10 @@ private fun DailyEquilibriumCard(state: RuhRagaUiState) {
 
 @Composable
 private fun UpcomingPrayerCard(
+    prayerName: String,
+    prayerTime: String,
+    countdown: String,
+    locationLabel: String,
     reminderEnabled: Boolean,
     adhanSoundEnabled: Boolean,
     onToggleReminder: () -> Unit,
@@ -510,13 +536,13 @@ private fun UpcomingPrayerCard(
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Ashar Prayer",
+                            text = "$prayerName Prayer",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "15:24",
+                            text = prayerTime,
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier
@@ -527,7 +553,7 @@ private fun UpcomingPrayerCard(
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Jakarta (WIB) • Qibla 295° NW",
+                        text = locationLabel,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -548,7 +574,7 @@ private fun UpcomingPrayerCard(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "in 42m",
+                    text = countdown,
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -775,7 +801,7 @@ private fun SevenDayHarmonyMatrixCard(state: RuhRagaUiState) {
                 )
             }
             Text(
-                text = "96% Weekly Success",
+                text = "${state.weeklySuccessPercent}% Weekly Success",
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.primary
             )

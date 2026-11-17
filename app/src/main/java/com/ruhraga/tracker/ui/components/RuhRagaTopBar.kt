@@ -2,6 +2,7 @@ package com.ruhraga.tracker.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.sp
 fun RuhRagaTopBar(
     subtitle: String,
     streakDays: Int,
+    onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -128,7 +130,7 @@ fun RuhRagaTopBar(
                     )
                 }
 
-                Box {
+                Box(modifier = Modifier.clickable(onClick = onProfileClick)) {
                     Box(
                         modifier = Modifier
                             .size(34.dp)

@@ -18,10 +18,12 @@ import com.ruhraga.tracker.ui.components.RuhRagaTopBar
 import com.ruhraga.tracker.ui.screens.ActiveWorkoutTimerScreen
 import com.ruhraga.tracker.ui.screens.AnalyticsHeatmapScreen
 import com.ruhraga.tracker.ui.screens.IbadahTrackerScreen
+import com.ruhraga.tracker.ui.screens.OnboardingScreen
 import com.ruhraga.tracker.ui.screens.TodayOverviewScreen
 import com.ruhraga.tracker.ui.screens.WorkoutLoggerScreen
 import com.ruhraga.tracker.ui.state.RuhRagaViewModel
 
+private const val ROUTE_ONBOARDING = "onboarding"
 private const val ROUTE_ACTIVE_WORKOUT_TIMER = "active_workout_timer"
 
 @Composable
@@ -31,9 +33,10 @@ fun RuhRagaApp(
     val navController = rememberNavController()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: BottomNavTab.TODAY.route
+    val startRoute = if (state.userProfile.isOnboardingCompleted) BottomNavTab.TODAY.route else ROUTE_ONBOARDING
+    val currentRoute = navBackStackEntry?.destination?.route ?: startRoute
 
-    val isFullscreenRoute = currentRoute == ROUTE_ACTIVE_WORKOUT_TIMER
+    val isFullscreenRoute = currentRoute == ROUTE_ACTIVE_WORKOUT_TIMER || currentRoute == ROUTE_ONBOARDING
 
     val topBarSubtitle = when (currentRoute) {
         BottomNavTab.IBADAH.route -> "Ibadah"
@@ -47,7 +50,8 @@ fun RuhRagaApp(
             if (!isFullscreenRoute) {
                 RuhRagaTopBar(
                     subtitle = topBarSubtitle,
-                    streakDays = state.streakDays
+                    streakDays = state.streakDays,
+                    onProfileClick = { navController.navigate(ROUTE_ONBOARDING) }
                 )
             }
         },
@@ -70,9 +74,22 @@ fun RuhRagaApp(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = BottomNavTab.TODAY.route,
+            startDestination = startRoute,
             modifier = if (isFullscreenRoute) Modifier else Modifier.padding(innerPadding)
         ) {
+            composable(ROUTE_ONBOARDING) {
+                OnboardingScreen(
+                    initialProfile = state.userProfile,
+                    onSaveProfile = { name, age, weightKg, heightCm ->
+                        viewModel.saveUserProfile(name, age, weightKg, heightCm)
+                        navController.navigate(BottomNavTab.TODAY.route) {
+                            popUpTo(ROUTE_ONBOARDING) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+
             composable(BottomNavTab.TODAY.route) {
                 TodayOverviewScreen(
                     state = state,
