@@ -7,8 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.ruhraga.tracker.prayer.PrayerAlarmScheduler
 import com.ruhraga.tracker.prayer.PrayerNotificationHelper
 import com.ruhraga.tracker.prayer.PrayerTimeCalculator
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,23 +52,44 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
     private fun refreshPrayerSchedule() {
         val now = LocalDateTime.now()
         val today = now.toLocalDate()
+        val nowTime = now.toLocalTime()
         val times = PrayerTimeCalculator.calculateForDate(today)
         val tomorrowTimes = PrayerTimeCalculator.calculateForDate(today.plusDays(1))
         val next = PrayerTimeCalculator.findNextPrayer(now, times, tomorrowTimes)
 
-        val formattedTimes = mapOf(
-            "subuh" to "${PrayerTimeCalculator.formatTime(times.subuh)} WIB",
-            "dzuhur" to "${PrayerTimeCalculator.formatTime(times.dzuhur)} WIB",
-            "ashar" to "${PrayerTimeCalculator.formatTime(times.ashar)} WIB",
-            "maghrib" to "${PrayerTimeCalculator.formatTime(times.maghrib)} WIB",
-            "isya" to "${PrayerTimeCalculator.formatTime(times.isya)} WIB"
+        val prayerTimesMap = mapOf(
+            "subuh" to times.subuh,
+            "dzuhur" to times.dzuhur,
+            "ashar" to times.ashar,
+            "maghrib" to times.maghrib,
+            "isya" to times.isya
         )
+
+        val currentWindowId = listOf("isya", "maghrib", "ashar", "dzuhur", "subuh")
+            .firstOrNull { id ->
+                val t = prayerTimesMap[id] ?: LocalTime.MIDNIGHT
+                !nowTime.isBefore(t)
+            }
 
         _uiState.update { state ->
             val updatedPrayers = state.prayers.map { prayer ->
+                val targetTime = prayerTimesMap[prayer.id] ?: LocalTime.MIDNIGHT
+                val available = !nowTime.isBefore(targetTime)
+                val countdownText = if (!available) {
+                    val totalMins = Duration.between(now, today.atTime(targetTime))
+                        .toMinutes()
+                        .coerceAtLeast(1)
+                    val hrs = totalMins / 60
+                    val mins = totalMins % 60
+                    if (hrs > 0) "${hrs}j ${mins}m lagi" else "$mins menit lagi"
+                } else {
+                    null
+                }
                 prayer.copy(
-                    time = formattedTimes[prayer.id] ?: prayer.time,
-                    isActive = prayer.id == next.id
+                    time = "${PrayerTimeCalculator.formatTime(targetTime)} WIB",
+                    isActive = prayer.id == currentWindowId,
+                    isAvailable = available,
+                    countdownUntilStart = countdownText
                 )
             }
             state.copy(
@@ -201,6 +224,9 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
 
     fun togglePrayerCompleted(prayerId: String) {
         updateAndSyncTodayMatrix { state ->
+            val target = state.prayers.firstOrNull { it.id == prayerId } ?: return@updateAndSyncTodayMatrix state
+            if (!target.isAvailable) return@updateAndSyncTodayMatrix state
+
             val updated = state.prayers.map { prayer ->
                 if (prayer.id == prayerId) {
                     val nowCompleted = !prayer.isCompleted
@@ -227,7 +253,8 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
 
     fun logNextPendingPrayer() {
         updateAndSyncTodayMatrix { state ->
-            val nextPending = state.prayers.firstOrNull { !it.isCompleted } ?: return@updateAndSyncTodayMatrix state
+            val nextPending = state.prayers.firstOrNull { it.isAvailable && !it.isCompleted }
+                ?: return@updateAndSyncTodayMatrix state
             val updated = state.prayers.map { prayer ->
                 if (prayer.id == nextPending.id) {
                     prayer.copy(isCompleted = true, completedAt = "Completed now")

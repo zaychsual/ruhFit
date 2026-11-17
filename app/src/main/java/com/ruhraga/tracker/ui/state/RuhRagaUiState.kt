@@ -45,6 +45,8 @@ data class PrayerItem(
     val isCompleted: Boolean = false,
     val isJamaah: Boolean = false,
     val isActive: Boolean = false,
+    val isAvailable: Boolean = false,
+    val countdownUntilStart: String? = null,
     val completedAt: String? = null
 )
 

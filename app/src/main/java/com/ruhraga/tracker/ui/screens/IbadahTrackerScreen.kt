@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Spa
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material3.Button
@@ -392,7 +393,7 @@ private fun PrayerTrackerCard(
     ) {
         Row(
                 modifier =
-                        Modifier.fillMaxWidth().clickable {
+                        Modifier.fillMaxWidth().clickable(enabled = prayer.isAvailable) {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onToggleComplete()
                         },
@@ -405,22 +406,28 @@ private fun PrayerTrackerCard(
                                 Modifier.size(36.dp)
                                         .clip(CircleShape)
                                         .background(
-                                                if (prayer.isCompleted)
-                                                        MaterialTheme.colorScheme.primary
-                                                else
-                                                        MaterialTheme.colorScheme
-                                                                .surfaceContainerHighest
+                                                when {
+                                                    prayer.isCompleted -> MaterialTheme.colorScheme.primary
+                                                    !prayer.isAvailable -> MaterialTheme.colorScheme.surfaceContainerLow
+                                                    else -> MaterialTheme.colorScheme.surfaceContainerHighest
+                                                }
                                         ),
                         contentAlignment = Alignment.Center
                 ) {
                     Icon(
                             imageVector =
-                                    if (prayer.isCompleted) Icons.Rounded.Check
-                                    else Icons.Rounded.RadioButtonUnchecked,
+                                    when {
+                                        prayer.isCompleted -> Icons.Rounded.Check
+                                        !prayer.isAvailable -> Icons.Rounded.Schedule
+                                        else -> Icons.Rounded.RadioButtonUnchecked
+                                    },
                             contentDescription = null,
                             tint =
-                                    if (prayer.isCompleted) MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    when {
+                                        prayer.isCompleted -> MaterialTheme.colorScheme.onPrimary
+                                        !prayer.isAvailable -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
                             modifier = Modifier.size(18.dp)
                     )
                 }
@@ -430,7 +437,8 @@ private fun PrayerTrackerCard(
                         Text(
                                 text = prayer.name,
                                 style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = if (prayer.isAvailable) MaterialTheme.colorScheme.onSurface
+                                else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
@@ -438,10 +446,10 @@ private fun PrayerTrackerCard(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (prayer.isActive && !prayer.isCompleted) {
+                        if (prayer.isAvailable && prayer.isActive && !prayer.isCompleted) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                    text = "BERIKUTNYA",
+                                    text = "SAAT INI",
                                     style =
                                             MaterialTheme.typography.labelSmall.copy(
                                                     fontWeight = FontWeight.Bold
@@ -461,41 +469,70 @@ private fun PrayerTrackerCard(
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                             text =
-                                    if (prayer.isActive && !prayer.isCompleted)
-                                            "${prayer.time} • $countdownLabel"
-                                    else "${prayer.time} • ${prayer.rakaat} Rakaat",
+                                    when {
+                                        !prayer.isAvailable -> "${prayer.time} • Belum masuk waktu"
+                                        prayer.isActive && !prayer.isCompleted ->
+                                            "${prayer.time} • ${prayer.rakaat} Rakaat"
+                                        else -> "${prayer.time} • ${prayer.rakaat} Rakaat"
+                                    },
                             style = MaterialTheme.typography.bodySmall,
                             color =
-                                    if (prayer.isActive && !prayer.isCompleted)
+                                    if (prayer.isAvailable && prayer.isActive && !prayer.isCompleted)
                                             MaterialTheme.colorScheme.primary
                                     else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            // Friendly explicit action pill
-            Box(
-                    modifier =
-                            Modifier.clip(CircleShape)
-                                    .background(
-                                            if (prayer.isCompleted)
-                                                    MaterialTheme.colorScheme.primary.copy(
-                                                            alpha = 0.18f
-                                                    )
-                                            else MaterialTheme.colorScheme.surfaceContainerHighest
-                                    )
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                        text = if (prayer.isCompleted) "Selesai ✓" else "Tandai",
-                        style =
-                                MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold
-                                ),
-                        color =
-                                if (prayer.isCompleted) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurface
-                )
+            // Friendly explicit action pill or countdown lock pill
+            if (!prayer.isAvailable) {
+                Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier =
+                                Modifier.clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                            imageVector = Icons.Rounded.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                            text = prayer.countdownUntilStart ?: "Belum waktunya",
+                            style =
+                                    MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.SemiBold
+                                    ),
+                            color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            } else {
+                Box(
+                        modifier =
+                                Modifier.clip(CircleShape)
+                                        .background(
+                                                if (prayer.isCompleted)
+                                                        MaterialTheme.colorScheme.primary.copy(
+                                                                alpha = 0.18f
+                                                        )
+                                                else MaterialTheme.colorScheme.surfaceContainerHighest
+                                        )
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                            text = if (prayer.isCompleted) "Selesai ✓" else "Tandai",
+                            style =
+                                    MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold
+                                    ),
+                            color =
+                                    if (prayer.isCompleted) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
 
@@ -602,7 +639,7 @@ private fun PrayerTrackerCard(
             }
         }
 
-        if (prayer.isActive && !prayer.isCompleted) {
+        if (prayer.isAvailable && prayer.isActive && !prayer.isCompleted) {
             Button(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
