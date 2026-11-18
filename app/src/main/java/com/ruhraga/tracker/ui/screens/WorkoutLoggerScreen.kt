@@ -21,14 +21,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddCircleOutline
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.HourglassBottom
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Verified
@@ -36,8 +40,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +59,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ruhraga.tracker.ui.state.CardioMode
+import com.ruhraga.tracker.ui.state.CustomWorkoutItem
 import com.ruhraga.tracker.ui.state.ExerciseCategory
 import com.ruhraga.tracker.ui.state.RuhRagaUiState
 import com.ruhraga.tracker.ui.theme.RuhRagaTextStyles
@@ -63,6 +75,13 @@ fun WorkoutLoggerScreen(
     onOpenFullscreenTimer: () -> Unit,
     onSelectCardioMode: (CardioMode) -> Unit,
     onLogMetabolicFinisher: () -> Unit,
+    onAddPlanItem: (String, Int, Int) -> Unit = { _, _, _ -> },
+    onRemovePlanItem: (String) -> Unit = {},
+    onFinishPlanSetup: () -> Unit = {},
+    onReopenPlanSetup: () -> Unit = {},
+    onUpdatePlanSets: (String, Int) -> Unit = { _, _ -> },
+    onUpdatePlanReps: (String, Int) -> Unit = { _, _ -> },
+    onTogglePlanCompleted: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -74,6 +93,24 @@ fun WorkoutLoggerScreen(
     ) {
         item {
             WorkoutHeader(onOpenFullscreenTimer = onOpenFullscreenTimer)
+        }
+        item {
+            if (!state.isWorkoutPlanConfigured) {
+                WorkoutPlanSetupCard(
+                    planItems = state.workoutPlan,
+                    onAddItem = onAddPlanItem,
+                    onRemoveItem = onRemovePlanItem,
+                    onFinishSetup = onFinishPlanSetup
+                )
+            } else {
+                DailyWorkoutChecklistSection(
+                    items = state.workoutPlan,
+                    onReopenSetup = onReopenPlanSetup,
+                    onUpdateSets = onUpdatePlanSets,
+                    onUpdateReps = onUpdatePlanReps,
+                    onToggleComplete = onTogglePlanCompleted
+                )
+            }
         }
         item {
             ExerciseSelectorRow(
@@ -736,6 +773,357 @@ private fun CardioMetconCard(
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
+
+        Text(
+            text = "Kalori dihitung dengan rumus MET × ${state.userProfile.weightKg.toInt()} kg × durasi (Run: 9.8 MET, Jump Rope: 11.8 MET)",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun WorkoutPlanSetupCard(
+    planItems: List<CustomWorkoutItem>,
+    onAddItem: (String, Int, Int) -> Unit,
+    onRemoveItem: (String) -> Unit,
+    onFinishSetup: () -> Unit
+) {
+    var exerciseName by remember { mutableStateOf("") }
+    var sets by remember { mutableIntStateOf(3) }
+    var reps by remember { mutableIntStateOf(15) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f),
+                RoundedCornerShape(18.dp)
+            )
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "Atur Daftar Latihanmu",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "Masukkan latihan apa saja yang ingin kamu jalani setiap hari beserta target set & repetisi.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf("Push-ups", "Pull-ups", "Dips", "Squats", "Sit-ups").forEach { preset ->
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable { exerciseName = preset }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "+ $preset",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+        }
+
+        OutlinedTextField(
+            value = exerciseName,
+            onValueChange = { exerciseName = it },
+            label = { Text("Nama Latihan") },
+            placeholder = { Text("Contoh: Push-ups") },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.secondary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            StepperBox(
+                label = "Set",
+                value = sets,
+                onMinus = { if (sets > 1) sets-- },
+                onPlus = { if (sets < 20) sets++ },
+                modifier = Modifier.weight(1f)
+            )
+            StepperBox(
+                label = "Reps",
+                value = reps,
+                onMinus = { if (reps > 1) reps-- },
+                onPlus = { if (reps < 200) reps++ },
+                modifier = Modifier.weight(1f)
+            )
+            Button(
+                onClick = {
+                    if (exerciseName.isNotBlank()) {
+                        onAddItem(exerciseName, sets, reps)
+                        exerciseName = ""
+                    }
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.secondary
+                )
+            ) {
+                Text("Tambah", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+
+        if (planItems.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                planItems.forEach { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = item.name,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${item.sets} set × ${item.repsPerSet} reps (${item.totalReps} total)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Hapus",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clickable { onRemoveItem(item.id) }
+                        )
+                    }
+                }
+            }
+
+            Button(
+                onClick = onFinishSetup,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = RuhRagaTheme.extendedColors.ragaVibrantOrange,
+                    contentColor = MaterialTheme.colorScheme.onSecondary
+                )
+            ) {
+                Text(
+                    text = "Simpan Daftar Latihan (${planItems.size})",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DailyWorkoutChecklistSection(
+    items: List<CustomWorkoutItem>,
+    onReopenSetup: () -> Unit,
+    onUpdateSets: (String, Int) -> Unit,
+    onUpdateReps: (String, Int) -> Unit,
+    onToggleComplete: (String) -> Unit
+) {
+    val completedCount = items.count { it.isCompletedToday }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Checklist Latihan Hari Ini",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "$completedCount / ${items.size} latihan selesai",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .clickable(onClick = onReopenSetup)
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Ubah Daftar",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        items.forEach { item ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        if (item.isCompletedToday) MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f)
+                        else MaterialTheme.colorScheme.surfaceContainer
+                    )
+                    .then(
+                        if (item.isCompletedToday) Modifier.border(
+                            1.dp,
+                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f),
+                            RoundedCornerShape(16.dp)
+                        ) else Modifier
+                    )
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "${item.sets} set × ${item.repsPerSet} reps = ${item.totalReps} reps",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(
+                                if (item.isCompletedToday) MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
+                                else RuhRagaTheme.extendedColors.ragaVibrantOrange
+                            )
+                            .clickable(enabled = !item.isCompletedToday) { onToggleComplete(item.id) }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Text(
+                            text = if (item.isCompletedToday) "Selesai ✓" else "Tandai",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = if (item.isCompletedToday) MaterialTheme.colorScheme.secondary
+                            else MaterialTheme.colorScheme.onSecondary
+                        )
+                    }
+                }
+
+                if (!item.isCompletedToday) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        StepperBox(
+                            label = "Set",
+                            value = item.sets,
+                            onMinus = { onUpdateSets(item.id, -1) },
+                            onPlus = { onUpdateSets(item.id, 1) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        StepperBox(
+                            label = "Repetisi",
+                            value = item.repsPerSet,
+                            onMinus = { onUpdateReps(item.id, -1) },
+                            onPlus = { onUpdateReps(item.id, 1) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepperBox(
+    label: String,
+    value: Int,
+    onMinus: () -> Unit,
+    onPlus: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Remove,
+            contentDescription = "Kurangi $label",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .size(20.dp)
+                .clickable(onClick = onMinus)
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "$value",
+                style = RuhRagaTextStyles.TabularBodyMd.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Icon(
+            imageVector = Icons.Rounded.Add,
+            contentDescription = "Tambah $label",
+            tint = MaterialTheme.colorScheme.secondary,
+            modifier = Modifier
+                .size(20.dp)
+                .clickable(onClick = onPlus)
+        )
     }
 }
 

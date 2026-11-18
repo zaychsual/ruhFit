@@ -106,6 +106,29 @@ data class WorkoutHistoryEntry(
     val isCardio: Boolean
 )
 
+data class CustomWorkoutItem(
+    val id: String,
+    val name: String,
+    val sets: Int = 3,
+    val repsPerSet: Int = 15,
+    val isCompletedToday: Boolean = false
+) {
+    val totalReps: Int get() = sets * repsPerSet
+}
+
+data class DailyActivityResume(
+    val date: LocalDate,
+    val ruhPercent: Int,
+    val ragaPercent: Int,
+    val harmonyPercent: Int,
+    val completedPrayers: List<Pair<String, Boolean>>,
+    val completedSunnah: List<String>,
+    val tilawahDone: Boolean,
+    val workoutItems: List<String>,
+    val totalReps: Int,
+    val cardioSummary: String?
+)
+
 data class DayHarmonyPoint(
     val dayLetter: String,
     val ruhDone: Boolean,
@@ -171,6 +194,8 @@ data class RuhRagaUiState(
     val currentSetNumber: Int = 1,
     val totalSetsTarget: Int = 6,
     val completedSets: List<WorkoutSetItem> = emptyList(),
+    val workoutPlan: List<CustomWorkoutItem> = emptyList(),
+    val isWorkoutPlanConfigured: Boolean = false,
     val workoutHistory: List<WorkoutHistoryEntry> = emptyList(),
     val allTimeWorkoutReps: Int = 0,
     val restSecondsRemaining: Int = 0,
@@ -187,7 +212,10 @@ data class RuhRagaUiState(
     val audioCueEnabled: Boolean = true,
     val selectedPeriod: AnalyticsPeriod = AnalyticsPeriod.THIS_MONTH,
     val matrixDays: List<MatrixDayCell> = defaultEmptyMatrixDays(),
-    val selectedMatrixDay: Int = LocalDate.now().dayOfMonth
+    val displayedYearMonth: YearMonth = YearMonth.now(),
+    val displayedMatrixDays: List<MatrixDayCell> = defaultEmptyMatrixDays(),
+    val selectedMatrixDay: Int = LocalDate.now().dayOfMonth,
+    val selectedDayResume: DailyActivityResume? = null
 ) {
     val completedPrayersCount: Int get() = prayers.count { it.isCompleted }
 
@@ -203,9 +231,14 @@ data class RuhRagaUiState(
 
     val ragaCompletionPercent: Int
         get() {
-            val repScore = (currentExerciseReps.toFloat() / selectedExercise.targetReps.coerceAtLeast(1)) * 100f
+            val planScore = if (workoutPlan.isNotEmpty()) {
+                val done = workoutPlan.count { it.isCompletedToday }
+                (done.toFloat() / workoutPlan.size) * 100f
+            } else {
+                (currentExerciseReps.toFloat() / selectedExercise.targetReps.coerceAtLeast(1)) * 100f
+            }
             val cardioBonus = if (cardioDurationMin > 0) 15f else 0f
-            return (repScore + cardioBonus).toInt().coerceIn(0, 100)
+            return (planScore + cardioBonus).toInt().coerceIn(0, 100)
         }
 
     val harmonyPercent: Int get() = (ruhCompletionPercent + ragaCompletionPercent) / 2
@@ -214,7 +247,7 @@ data class RuhRagaUiState(
         get() = completedPrayersCount > 0 || tilawah.isCompletedToday || completedSunnahCount > 0
 
     val hasRagaActivityToday: Boolean
-        get() = currentExerciseReps > 0 || totalSessionReps > 0 || cardioDurationMin > 0
+        get() = workoutPlan.any { it.isCompletedToday } || currentExerciseReps > 0 || totalSessionReps > 0 || cardioDurationMin > 0
 
     val streakDays: Int
         get() = matrixDays.count { it.status != DayMatrixStatus.REST }
@@ -247,7 +280,7 @@ data class RuhRagaUiState(
         }
 
     val monthlyMonthLabel: String
-        get() = YearMonth.now().format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
+        get() = displayedYearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
 
     val activeLoggedDaysCount: Int
         get() = matrixDays.count { it.status != DayMatrixStatus.REST }

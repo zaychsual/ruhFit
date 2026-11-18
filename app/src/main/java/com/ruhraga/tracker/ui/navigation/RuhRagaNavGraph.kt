@@ -135,7 +135,14 @@ fun RuhRagaApp(
                     onSkipRest = viewModel::skipRestTimer,
                     onOpenFullscreenTimer = { navController.navigate(ROUTE_ACTIVE_WORKOUT_TIMER) },
                     onSelectCardioMode = viewModel::selectCardioMode,
-                    onLogMetabolicFinisher = viewModel::logMetabolicFinisher
+                    onLogMetabolicFinisher = viewModel::logMetabolicFinisher,
+                    onAddPlanItem = viewModel::addWorkoutPlanItem,
+                    onRemovePlanItem = viewModel::removeWorkoutPlanItem,
+                    onFinishPlanSetup = viewModel::finishWorkoutPlanSetup,
+                    onReopenPlanSetup = viewModel::reopenWorkoutPlanSetup,
+                    onUpdatePlanSets = viewModel::updatePlanItemSets,
+                    onUpdatePlanReps = viewModel::updatePlanItemReps,
+                    onTogglePlanCompleted = viewModel::togglePlanItemCompleted
                 )
             }
 

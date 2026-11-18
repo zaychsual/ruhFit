@@ -344,6 +344,92 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun addWorkoutPlanItem(name: String, sets: Int, repsPerSet: Int) {
+        val cleanName = name.trim()
+        if (cleanName.isEmpty()) return
+        val newItem = CustomWorkoutItem(
+            id = "${cleanName.lowercase().replace(" ", "_")}_${System.currentTimeMillis()}",
+            name = cleanName,
+            sets = sets.coerceIn(1, 20),
+            repsPerSet = repsPerSet.coerceIn(1, 200)
+        )
+        updateAndSyncTodayMatrix { state ->
+            state.copy(workoutPlan = state.workoutPlan + newItem)
+        }
+    }
+
+    fun removeWorkoutPlanItem(id: String) {
+        updateAndSyncTodayMatrix { state ->
+            state.copy(workoutPlan = state.workoutPlan.filterNot { it.id == id })
+        }
+    }
+
+    fun finishWorkoutPlanSetup() {
+        updateAndSyncTodayMatrix { state ->
+            if (state.workoutPlan.isEmpty()) state
+            else state.copy(isWorkoutPlanConfigured = true)
+        }
+    }
+
+    fun reopenWorkoutPlanSetup() {
+        _uiState.update { it.copy(isWorkoutPlanConfigured = false) }
+    }
+
+    fun updatePlanItemSets(id: String, delta: Int) {
+        updateAndSyncTodayMatrix { state ->
+            val updated = state.workoutPlan.map { item ->
+                if (item.id == id && !item.isCompletedToday) {
+                    item.copy(sets = (item.sets + delta).coerceIn(1, 20))
+                } else item
+            }
+            state.copy(workoutPlan = updated)
+        }
+    }
+
+    fun updatePlanItemReps(id: String, delta: Int) {
+        updateAndSyncTodayMatrix { state ->
+            val updated = state.workoutPlan.map { item ->
+                if (item.id == id && !item.isCompletedToday) {
+                    item.copy(repsPerSet = (item.repsPerSet + delta).coerceIn(1, 200))
+                } else item
+            }
+            state.copy(workoutPlan = updated)
+        }
+    }
+
+    fun togglePlanItemCompleted(id: String) {
+        val today = LocalDate.now()
+        val current = _uiState.value
+        val target = current.workoutPlan.firstOrNull { it.id == id } ?: return
+        if (target.isCompletedToday) return
+
+        val matchedCategory = ExerciseCategory.entries.firstOrNull {
+            target.name.contains(it.label.removeSuffix("s"), ignoreCase = true)
+        } ?: ExerciseCategory.PUSH_UPS
+
+        workoutDb.insertWorkoutEntry(
+            date = today,
+            exercise = matchedCategory,
+            setNumber = target.sets,
+            reps = target.totalReps,
+            restSeconds = 45
+        )
+        val history = workoutDb.getRecentWorkoutHistory()
+        val allTime = workoutDb.getAllTimeTotalReps()
+
+        updateAndSyncTodayMatrix { state ->
+            val updatedPlan = state.workoutPlan.map { item ->
+                if (item.id == id) item.copy(isCompletedToday = true) else item
+            }
+            state.copy(
+                workoutPlan = updatedPlan,
+                totalSessionReps = state.totalSessionReps + target.totalReps,
+                workoutHistory = history,
+                allTimeWorkoutReps = allTime
+            )
+        }
+    }
+
     fun selectExercise(category: ExerciseCategory) {
         val today = LocalDate.now()
         val exReps = workoutDb.getExerciseRepsForDate(today, category)
@@ -489,7 +575,11 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
         val currentState = _uiState.value
         val addDist = if (currentState.cardioMode == CardioMode.RUN) 1.0f else 0.5f
         val addMin = 10
-        val addKcal = if (currentState.cardioMode == CardioMode.RUN) 90 else 120
+        // Rumus MET (Compendium of Physical Activities):
+        // Kalori = MET * Berat Badan (kg) * Durasi (jam)
+        val met = if (currentState.cardioMode == CardioMode.RUN) 9.8f else 11.8f
+        val weightKg = currentState.userProfile.weightKg.coerceAtLeast(30f)
+        val addKcal = kotlin.math.round(met * weightKg * (addMin / 60f)).toInt()
 
         workoutDb.insertCardioEntry(
             date = today,

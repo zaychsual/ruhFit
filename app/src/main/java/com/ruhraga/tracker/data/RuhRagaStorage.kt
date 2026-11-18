@@ -2,6 +2,7 @@ package com.ruhraga.tracker.data
 
 import android.content.Context
 import com.ruhraga.tracker.ui.state.CardioMode
+import com.ruhraga.tracker.ui.state.CustomWorkoutItem
 import com.ruhraga.tracker.ui.state.DayMatrixStatus
 import com.ruhraga.tracker.ui.state.ExerciseCategory
 import com.ruhraga.tracker.ui.state.MatrixDayCell
@@ -108,18 +109,70 @@ class RuhRagaStorage(context: Context) {
             put("cardioDistanceKm", state.cardioDistanceKm.toDouble())
             put("cardioDurationMin", state.cardioDurationMin)
             put("cardioCalories", state.cardioCalories)
+
+            val planStatusArray = JSONArray()
+            state.workoutPlan.forEach { item ->
+                planStatusArray.put(
+                    JSONObject().apply {
+                        put("id", item.id)
+                        put("sets", item.sets)
+                        put("repsPerSet", item.repsPerSet)
+                        put("isCompletedToday", item.isCompletedToday)
+                    }
+                )
+            }
+            put("workoutPlanDaily", planStatusArray)
+        }
+
+        val globalPlanArray = JSONArray()
+        state.workoutPlan.forEach { item ->
+            globalPlanArray.put(
+                JSONObject().apply {
+                    put("id", item.id)
+                    put("name", item.name)
+                    put("sets", item.sets)
+                    put("repsPerSet", item.repsPerSet)
+                }
+            )
         }
 
         prefs.edit()
             .putString(monthKey, matrixArray.toString())
             .putString(dayKey, dailyJson.toString())
+            .putString("workout_plan_list", globalPlanArray.toString())
+            .putBoolean("workout_plan_configured", state.isWorkoutPlanConfigured)
             .apply()
     }
 
     fun restoreInto(baseState: RuhRagaUiState, date: LocalDate = LocalDate.now()): RuhRagaUiState {
-        var result = restoreMatrix(baseState, YearMonth.from(date))
+        var result = restoreWorkoutPlan(baseState)
+        result = restoreMatrix(result, YearMonth.from(date))
         result = restoreDailyLog(result, date)
         return result
+    }
+
+    private fun restoreWorkoutPlan(state: RuhRagaUiState): RuhRagaUiState {
+        val configured = prefs.getBoolean("workout_plan_configured", false)
+        val raw = prefs.getString("workout_plan_list", null) ?: return state.copy(isWorkoutPlanConfigured = configured)
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<CustomWorkoutItem>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    CustomWorkoutItem(
+                        id = obj.getString("id"),
+                        name = obj.getString("name"),
+                        sets = obj.optInt("sets", 3),
+                        repsPerSet = obj.optInt("repsPerSet", 15),
+                        isCompletedToday = false
+                    )
+                )
+            }
+            state.copy(workoutPlan = list, isWorkoutPlanConfigured = configured)
+        } catch (_: Exception) {
+            state
+        }
     }
 
     private fun restoreMatrix(state: RuhRagaUiState, yearMonth: YearMonth): RuhRagaUiState {
@@ -233,11 +286,35 @@ class RuhRagaStorage(context: Context) {
                 }
             }
 
+            val dailyPlanMap = mutableMapOf<String, Triple<Int, Int, Boolean>>()
+            val planArr = obj.optJSONArray("workoutPlanDaily")
+            if (planArr != null) {
+                for (i in 0 until planArr.length()) {
+                    val itemObj = planArr.getJSONObject(i)
+                    dailyPlanMap[itemObj.getString("id")] = Triple(
+                        itemObj.optInt("sets", 3),
+                        itemObj.optInt("repsPerSet", 15),
+                        itemObj.optBoolean("isCompletedToday", false)
+                    )
+                }
+            }
+            val restoredPlan = state.workoutPlan.map { item ->
+                val daily = dailyPlanMap[item.id]
+                if (daily != null) {
+                    item.copy(
+                        sets = daily.first,
+                        repsPerSet = daily.second,
+                        isCompletedToday = daily.third
+                    )
+                } else item
+            }
+
             state.copy(
                 prayers = restoredPrayers,
                 sunnahItems = restoredSunnah,
                 tilawah = restoredTilawah,
                 tasbih = restoredTasbih,
+                workoutPlan = restoredPlan,
                 selectedExercise = exercise,
                 totalSessionTargetReps = exercise.targetReps,
                 activeTimerMovement = exercise.label,
