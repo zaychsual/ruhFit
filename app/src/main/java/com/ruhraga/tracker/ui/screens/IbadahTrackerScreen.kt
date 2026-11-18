@@ -393,7 +393,9 @@ private fun PrayerTrackerCard(
     ) {
         Row(
                 modifier =
-                        Modifier.fillMaxWidth().clickable(enabled = prayer.isAvailable) {
+                        Modifier.fillMaxWidth().clickable(
+                            enabled = prayer.isAvailable && !prayer.isCompleted
+                        ) {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onToggleComplete()
                         },

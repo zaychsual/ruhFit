@@ -3,6 +3,7 @@ package com.ruhraga.tracker.ui.theme
 import android.app.Activity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -50,6 +51,44 @@ private val RuhRagaDarkColorScheme = darkColorScheme(
     surfaceContainerHighest = SurfaceContainerHighest
 )
 
+private val RuhRagaLightColorScheme = lightColorScheme(
+    primary = LightPrimary,
+    onPrimary = LightOnPrimary,
+    primaryContainer = LightPrimaryContainer,
+    onPrimaryContainer = LightOnPrimaryContainer,
+    inversePrimary = LightInversePrimary,
+    secondary = LightSecondary,
+    onSecondary = LightOnSecondary,
+    secondaryContainer = LightSecondaryContainer,
+    onSecondaryContainer = LightOnSecondaryContainer,
+    tertiary = LightTertiary,
+    onTertiary = LightOnTertiary,
+    tertiaryContainer = LightTertiaryContainer,
+    onTertiaryContainer = LightOnTertiaryContainer,
+    background = LightBackground,
+    onBackground = LightOnBackground,
+    surface = LightSurface,
+    onSurface = LightOnSurface,
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = LightOnSurfaceVariant,
+    surfaceTint = LightPrimary,
+    inverseSurface = LightInverseSurface,
+    inverseOnSurface = LightInverseOnSurface,
+    error = LightError,
+    onError = LightOnError,
+    errorContainer = LightErrorContainer,
+    onErrorContainer = LightOnErrorContainer,
+    outline = LightOutline,
+    outlineVariant = LightOutlineVariant,
+    surfaceDim = LightSurfaceDim,
+    surfaceBright = LightSurfaceBright,
+    surfaceContainerLowest = LightSurfaceContainerLowest,
+    surfaceContainerLow = LightSurfaceContainerLow,
+    surfaceContainer = LightSurfaceContainer,
+    surfaceContainerHigh = LightSurfaceContainerHigh,
+    surfaceContainerHighest = LightSurfaceContainerHighest
+)
+
 @Immutable
 data class RuhRagaExtendedColors(
     val subtleBorder: Color = SubtleBorder,
@@ -68,6 +107,7 @@ object RuhRagaTheme {
 
 @Composable
 fun RuhRagaTheme(
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val view = LocalView.current
@@ -76,18 +116,29 @@ fun RuhRagaTheme(
             val window = (view.context as? Activity)?.window
             if (window != null) {
                 WindowCompat.getInsetsController(window, view).apply {
-                    isAppearanceLightStatusBars = false
-                    isAppearanceLightNavigationBars = false
+                    isAppearanceLightStatusBars = !darkTheme
+                    isAppearanceLightNavigationBars = !darkTheme
                 }
             }
         }
     }
 
+    val extended = if (darkTheme) {
+        RuhRagaExtendedColors()
+    } else {
+        RuhRagaExtendedColors(
+            subtleBorder = LightSubtleBorder,
+            primaryFixed = LightPrimaryContainer,
+            secondaryFixed = LightSecondaryContainer,
+            ragaVibrantOrange = RagaVibrantOrange
+        )
+    }
+
     CompositionLocalProvider(
-        LocalRuhRagaExtendedColors provides RuhRagaExtendedColors()
+        LocalRuhRagaExtendedColors provides extended
     ) {
         MaterialTheme(
-            colorScheme = RuhRagaDarkColorScheme,
+            colorScheme = if (darkTheme) RuhRagaDarkColorScheme else RuhRagaLightColorScheme,
             typography = RuhRagaTypography,
             content = content
         )

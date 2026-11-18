@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ruhraga.tracker.data.RuhRagaStorage
+import com.ruhraga.tracker.data.WorkoutDatabaseHelper
 import com.ruhraga.tracker.prayer.PrayerAlarmScheduler
 import com.ruhraga.tracker.prayer.PrayerNotificationHelper
 import com.ruhraga.tracker.prayer.PrayerTimeCalculator
@@ -22,12 +24,17 @@ import kotlinx.coroutines.launch
 class RuhRagaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences("ruh_raga_prefs", Context.MODE_PRIVATE)
+    private val storage = RuhRagaStorage(application)
+    private val workoutDb = WorkoutDatabaseHelper(application)
 
     private val _uiState = MutableStateFlow(
-        RuhRagaUiState(
-            userProfile = loadSavedProfile(),
-            reminderEnabled = prefs.getBoolean("reminder_enabled", true),
-            adhanSoundEnabled = prefs.getBoolean("adhan_sound_enabled", false)
+        storage.restoreInto(
+            RuhRagaUiState(
+                isDarkTheme = prefs.getBoolean("is_dark_theme", true),
+                userProfile = loadSavedProfile(),
+                reminderEnabled = prefs.getBoolean("reminder_enabled", true),
+                adhanSoundEnabled = prefs.getBoolean("adhan_sound_enabled", false)
+            )
         )
     )
     val uiState: StateFlow<RuhRagaUiState> = _uiState.asStateFlow()
@@ -38,6 +45,26 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
         refreshPrayerSchedule()
         syncAlarmsWithPreferences()
         startPrayerCountdownTicker()
+        refreshWorkoutFromDb()
+    }
+
+    private fun refreshWorkoutFromDb() {
+        val today = LocalDate.now()
+        _uiState.update { state ->
+            val exReps = workoutDb.getExerciseRepsForDate(today, state.selectedExercise)
+            val totalToday = workoutDb.getTotalRepsForDate(today)
+            val sets = workoutDb.getSetsForDateAndExercise(today, state.selectedExercise)
+            val history = workoutDb.getRecentWorkoutHistory()
+            val allTime = workoutDb.getAllTimeTotalReps()
+            state.copy(
+                currentExerciseReps = maxOf(exReps, state.currentExerciseReps),
+                totalSessionReps = maxOf(totalToday, state.totalSessionReps),
+                completedSets = if (sets.isNotEmpty()) sets else state.completedSets,
+                currentSetNumber = if (sets.isNotEmpty()) (sets.size + 1).coerceAtMost(state.totalSetsTarget) else state.currentSetNumber,
+                workoutHistory = history,
+                allTimeWorkoutReps = allTime
+            )
+        }
     }
 
     private fun startPrayerCountdownTicker() {
@@ -200,8 +227,16 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
                     cell
                 }
             }
-            updated.copy(matrixDays = updatedMatrix)
+            val finalState = updated.copy(matrixDays = updatedMatrix)
+            storage.saveState(finalState)
+            finalState
         }
+    }
+
+    fun toggleTheme() {
+        val nextDark = !_uiState.value.isDarkTheme
+        prefs.edit().putBoolean("is_dark_theme", nextDark).apply()
+        _uiState.update { it.copy(isDarkTheme = nextDark) }
     }
 
     fun toggleReminder() {
@@ -225,14 +260,13 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
     fun togglePrayerCompleted(prayerId: String) {
         updateAndSyncTodayMatrix { state ->
             val target = state.prayers.firstOrNull { it.id == prayerId } ?: return@updateAndSyncTodayMatrix state
-            if (!target.isAvailable) return@updateAndSyncTodayMatrix state
+            if (!target.isAvailable || target.isCompleted) return@updateAndSyncTodayMatrix state
 
             val updated = state.prayers.map { prayer ->
                 if (prayer.id == prayerId) {
-                    val nowCompleted = !prayer.isCompleted
                     prayer.copy(
-                        isCompleted = nowCompleted,
-                        completedAt = if (nowCompleted) "Completed now" else null
+                        isCompleted = true,
+                        completedAt = "Completed now"
                     )
                 } else {
                     prayer
@@ -247,7 +281,9 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
             val updated = state.prayers.map { prayer ->
                 if (prayer.id == prayerId) prayer.copy(isJamaah = !prayer.isJamaah) else prayer
             }
-            state.copy(prayers = updated)
+            val nextState = state.copy(prayers = updated)
+            storage.saveState(nextState)
+            nextState
         }
     }
 
@@ -302,35 +338,72 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
             }
-            state.copy(tasbih = next)
+            val nextState = state.copy(tasbih = next)
+            storage.saveState(nextState)
+            nextState
         }
     }
 
     fun selectExercise(category: ExerciseCategory) {
+        val today = LocalDate.now()
+        val exReps = workoutDb.getExerciseRepsForDate(today, category)
+        val sets = workoutDb.getSetsForDateAndExercise(today, category)
         _uiState.update {
             it.copy(
                 selectedExercise = category,
                 totalSessionTargetReps = category.targetReps,
-                activeTimerMovement = category.label
+                activeTimerMovement = category.label,
+                currentExerciseReps = exReps,
+                completedSets = sets,
+                currentSetNumber = (sets.size + 1).coerceAtMost(it.totalSetsTarget)
             )
         }
     }
 
     fun adjustReps(delta: Int) {
+        val today = LocalDate.now()
+        val currentState = _uiState.value
+        val actualDelta = if (currentState.currentExerciseReps + delta < 0) -currentState.currentExerciseReps else delta
+        if (actualDelta != 0) {
+            workoutDb.insertWorkoutEntry(
+                date = today,
+                exercise = currentState.selectedExercise,
+                setNumber = 0,
+                reps = actualDelta,
+                restSeconds = 0
+            )
+        }
+        val history = workoutDb.getRecentWorkoutHistory()
+        val allTime = workoutDb.getAllTimeTotalReps()
         updateAndSyncTodayMatrix { state ->
             val updatedReps = (state.currentExerciseReps + delta).coerceAtLeast(0)
-            val updatedTotal = (state.totalSessionReps + delta).coerceAtLeast(0)
+            val updatedTotal = (state.totalSessionReps + actualDelta).coerceAtLeast(0)
             state.copy(
                 currentExerciseReps = updatedReps,
-                totalSessionReps = updatedTotal
+                totalSessionReps = updatedTotal,
+                workoutHistory = history,
+                allTimeWorkoutReps = allTime
             )
         }
     }
 
     fun logSetAndStartRest() {
+        val today = LocalDate.now()
+        val currentState = _uiState.value
+        val repsForSet = currentState.activeTimerReps.takeIf { it > 0 } ?: 10
+        val nextSetIndex = currentState.completedSets.size + 1
+
+        workoutDb.insertWorkoutEntry(
+            date = today,
+            exercise = currentState.selectedExercise,
+            setNumber = nextSetIndex,
+            reps = repsForSet,
+            restSeconds = 45
+        )
+        val history = workoutDb.getRecentWorkoutHistory()
+        val allTime = workoutDb.getAllTimeTotalReps()
+
         updateAndSyncTodayMatrix { state ->
-            val repsForSet = state.activeTimerReps.takeIf { it > 0 } ?: 10
-            val nextSetIndex = state.completedSets.size + 1
             val newSet = WorkoutSetItem(
                 setNumber = nextSetIndex,
                 reps = repsForSet,
@@ -342,6 +415,8 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
                 currentSetNumber = (nextSetIndex + 1).coerceAtMost(state.totalSetsTarget),
                 currentExerciseReps = state.currentExerciseReps + repsForSet,
                 totalSessionReps = state.totalSessionReps + repsForSet,
+                workoutHistory = history,
+                allTimeWorkoutReps = allTime,
                 restSecondsRemaining = 45,
                 restTotalSeconds = 45,
                 isRestTimerRunning = true
@@ -410,14 +485,27 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun logMetabolicFinisher() {
+        val today = LocalDate.now()
+        val currentState = _uiState.value
+        val addDist = if (currentState.cardioMode == CardioMode.RUN) 1.0f else 0.5f
+        val addMin = 10
+        val addKcal = if (currentState.cardioMode == CardioMode.RUN) 90 else 120
+
+        workoutDb.insertCardioEntry(
+            date = today,
+            mode = currentState.cardioMode,
+            distanceKm = addDist,
+            durationMin = addMin,
+            calories = addKcal
+        )
+        val history = workoutDb.getRecentWorkoutHistory()
+
         updateAndSyncTodayMatrix { state ->
-            val addDist = if (state.cardioMode == CardioMode.RUN) 1.0f else 0.5f
-            val addMin = 10
-            val addKcal = if (state.cardioMode == CardioMode.RUN) 90 else 120
             state.copy(
                 cardioDistanceKm = state.cardioDistanceKm + addDist,
                 cardioDurationMin = state.cardioDurationMin + addMin,
-                cardioCalories = state.cardioCalories + addKcal
+                cardioCalories = state.cardioCalories + addKcal,
+                workoutHistory = history
             )
         }
     }

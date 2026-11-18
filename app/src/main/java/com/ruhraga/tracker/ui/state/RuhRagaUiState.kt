@@ -98,6 +98,14 @@ data class WorkoutSetItem(
     val isDone: Boolean
 )
 
+data class WorkoutHistoryEntry(
+    val date: String,
+    val title: String,
+    val subtitle: String,
+    val metricLabel: String,
+    val isCardio: Boolean
+)
+
 data class DayHarmonyPoint(
     val dayLetter: String,
     val ruhDone: Boolean,
@@ -140,6 +148,7 @@ data class UserProfile(
 )
 
 data class RuhRagaUiState(
+    val isDarkTheme: Boolean = true,
     val userProfile: UserProfile = UserProfile(),
     val dateLabel: String = "",
     val hijriLabel: String = "",
@@ -162,6 +171,8 @@ data class RuhRagaUiState(
     val currentSetNumber: Int = 1,
     val totalSetsTarget: Int = 6,
     val completedSets: List<WorkoutSetItem> = emptyList(),
+    val workoutHistory: List<WorkoutHistoryEntry> = emptyList(),
+    val allTimeWorkoutReps: Int = 0,
     val restSecondsRemaining: Int = 0,
     val restTotalSeconds: Int = 45,
     val isRestTimerRunning: Boolean = false,

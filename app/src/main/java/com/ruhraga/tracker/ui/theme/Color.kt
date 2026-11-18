@@ -63,3 +63,47 @@ val Error = Color(0xFFFFB4AB)
 val OnError = Color(0xFF690005)
 val ErrorContainer = Color(0xFF93000A)
 val OnErrorContainer = Color(0xFFFFDAD6)
+
+// Light Theme Material 3 Tonal Palette
+val LightSurface = Color(0xFFF1F5F9)
+val LightSurfaceDim = Color(0xFFE2E8F0)
+val LightSurfaceBright = Color(0xFFFFFFFF)
+val LightSurfaceContainerLowest = Color(0xFFE2E8F0)
+val LightSurfaceContainerLow = Color(0xFFF8FAFC)
+val LightSurfaceContainer = Color(0xFFFFFFFF)
+val LightSurfaceContainerHigh = Color(0xFFE2E8F0)
+val LightSurfaceContainerHighest = Color(0xFFCBD5E1)
+val LightSurfaceVariant = Color(0xFFE2E8F0)
+
+val LightBackground = Color(0xFFF1F5F9)
+val LightOnBackground = Color(0xFF0F172A)
+val LightOnSurface = Color(0xFF0F172A)
+val LightOnSurfaceVariant = Color(0xFF475569)
+
+val LightInverseSurface = Color(0xFF0F172A)
+val LightInverseOnSurface = Color(0xFFF8FAFC)
+
+val LightOutline = Color(0xFF94A3B8)
+val LightOutlineVariant = Color(0xFFCBD5E1)
+val LightSubtleBorder = Color(0xFFCBD5E1)
+
+val LightPrimary = Color(0xFF059669)
+val LightOnPrimary = Color(0xFFFFFFFF)
+val LightPrimaryContainer = Color(0xFF10B981)
+val LightOnPrimaryContainer = Color(0xFF002113)
+val LightInversePrimary = Color(0xFF4EDEA3)
+
+val LightSecondary = Color(0xFFEA580C)
+val LightOnSecondary = Color(0xFFFFFFFF)
+val LightSecondaryContainer = Color(0xFFF97316)
+val LightOnSecondaryContainer = Color(0xFF431407)
+
+val LightTertiary = Color(0xFFDC2626)
+val LightOnTertiary = Color(0xFFFFFFFF)
+val LightTertiaryContainer = Color(0xFFFEE2E2)
+val LightOnTertiaryContainer = Color(0xFF7F1D1D)
+
+val LightError = Color(0xFFDC2626)
+val LightOnError = Color(0xFFFFFFFF)
+val LightErrorContainer = Color(0xFFFEE2E2)
+val LightOnErrorContainer = Color(0xFF7F1D1D)

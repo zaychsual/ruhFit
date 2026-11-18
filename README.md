@@ -85,7 +85,36 @@ Pastikan perangkat pengembangan sudah memiliki:
 
 ---
 
-## 3. Perintah Build Menjadi File APK
+## 3. Cara Debug di HP Android (Physical Device)
+
+1. **Aktifkan USB Debugging di HP:**
+   - Buka **Settings → About Phone** → ketuk **Build Number** 7x untuk mengaktifkan *Developer Options*.
+   - Buka **Settings → Developer Options** → aktifkan **USB Debugging**, lalu sambungkan HP ke Mac via kabel USB.
+
+2. **Cek serial HP yang terhubung:**
+   ```zsh
+   ~/Library/Android/sdk/platform-tools/adb devices -l
+   ```
+   Catat serial device HP kamu (contoh: `115333742T002273`).
+
+3. **Build, install, dan jalankan aplikasi langsung di HP:**
+   - Jika **hanya HP** yang terhubung (emulator tidak menyala):
+     ```zsh
+     ./gradlew installDebug --no-daemon && ~/Library/Android/sdk/platform-tools/adb shell am start -S -n com.ruhraga.tracker/.MainActivity
+     ```
+   - Jika **HP dan emulator sama-sama aktif**, sertakan `-s <SERIAL_HP>`:
+     ```zsh
+     ./gradlew assembleDebug --no-daemon && ~/Library/Android/sdk/platform-tools/adb -s <SERIAL_HP> install -r app/build/outputs/apk/debug/app-debug.apk && ~/Library/Android/sdk/platform-tools/adb -s <SERIAL_HP> shell am start -S -n com.ruhraga.tracker/.MainActivity
+     ```
+
+4. **Pantau Logcat (error / debug log) khusus aplikasi di terminal:**
+   ```zsh
+   ~/Library/Android/sdk/platform-tools/adb -s <SERIAL_HP> logcat --pid=$(~/Library/Android/sdk/platform-tools/adb -s <SERIAL_HP> shell pidof -s com.ruhraga.tracker)
+   ```
+
+---
+
+## 4. Perintah Build Menjadi File APK
 
 ### Build Debug APK (Untuk Testing / Share Cepat)
 ```zsh

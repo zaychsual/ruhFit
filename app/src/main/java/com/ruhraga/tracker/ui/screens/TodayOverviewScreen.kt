@@ -65,6 +65,8 @@ fun TodayOverviewScreen(
     onResumeWorkout: () -> Unit,
     onQuickLogShalat: () -> Unit,
     onQuickAddReps: () -> Unit,
+    onNavigateToIbadah: () -> Unit = {},
+    onNavigateToWorkout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -84,7 +86,11 @@ fun TodayOverviewScreen(
             )
         }
         item {
-            DailyEquilibriumCard(state = state)
+            DailyEquilibriumCard(
+                state = state,
+                onRuhClick = onNavigateToIbadah,
+                onRagaClick = onNavigateToWorkout
+            )
         }
         item {
             UpcomingPrayerCard(
@@ -295,7 +301,11 @@ private fun StreakMilestoneCard(
 }
 
 @Composable
-private fun DailyEquilibriumCard(state: RuhRagaUiState) {
+private fun DailyEquilibriumCard(
+    state: RuhRagaUiState,
+    onRuhClick: () -> Unit,
+    onRagaClick: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -355,6 +365,7 @@ private fun DailyEquilibriumCard(state: RuhRagaUiState) {
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .clickable(onClick = onRuhClick)
                     .padding(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -412,6 +423,7 @@ private fun DailyEquilibriumCard(state: RuhRagaUiState) {
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .clickable(onClick = onRagaClick)
                     .padding(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {

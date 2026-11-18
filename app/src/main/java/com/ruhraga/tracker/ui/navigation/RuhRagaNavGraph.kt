@@ -51,6 +51,8 @@ fun RuhRagaApp(
                 RuhRagaTopBar(
                     subtitle = topBarSubtitle,
                     streakDays = state.streakDays,
+                    isDarkTheme = state.isDarkTheme,
+                    onToggleTheme = viewModel::toggleTheme,
                     onProfileClick = { navController.navigate(ROUTE_ONBOARDING) }
                 )
             }
@@ -91,13 +93,24 @@ fun RuhRagaApp(
             }
 
             composable(BottomNavTab.TODAY.route) {
+                val navigateToTab: (BottomNavTab) -> Unit = { tab ->
+                    navController.navigate(tab.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
                 TodayOverviewScreen(
                     state = state,
                     onToggleReminder = viewModel::toggleReminder,
                     onToggleAdhanSound = viewModel::toggleAdhanSound,
                     onResumeWorkout = { navController.navigate(ROUTE_ACTIVE_WORKOUT_TIMER) },
                     onQuickLogShalat = viewModel::logNextPendingPrayer,
-                    onQuickAddReps = { viewModel.adjustReps(20) }
+                    onQuickAddReps = { viewModel.adjustReps(20) },
+                    onNavigateToIbadah = { navigateToTab(BottomNavTab.IBADAH) },
+                    onNavigateToWorkout = { navigateToTab(BottomNavTab.WORKOUT) }
                 )
             }
 
