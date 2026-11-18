@@ -107,7 +107,7 @@ fun OnboardingScreen(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Ruh & Raga",
+                        text = "Ruh Fit",
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -331,7 +331,7 @@ fun OnboardingScreen(
                 )
             ) {
                 Text(
-                    text = if (initialProfile.isOnboardingCompleted) "Simpan Perubahan" else "Mulai Ruh & Raga",
+                    text = if (initialProfile.isOnboardingCompleted) "Simpan Perubahan" else "Mulai Ruh Fit",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                 )
                 Spacer(modifier = Modifier.width(8.dp))

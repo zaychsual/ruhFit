@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "RuhRagaTracker"
+rootProject.name = "ruhfit"
 include(":app")

@@ -84,7 +84,7 @@ object PrayerNotificationHelper {
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("Waktu Shalat $prayerName ($prayerTime)")
-            .setContentText("Mari tunaikan shalat $prayerName tepat waktu. Ruh & Raga terjaga.")
+            .setContentText("Mari tunaikan shalat $prayerName tepat waktu. Ruh Fit terjaga.")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)

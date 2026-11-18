@@ -107,8 +107,6 @@ fun RuhRagaApp(
                     onToggleReminder = viewModel::toggleReminder,
                     onToggleAdhanSound = viewModel::toggleAdhanSound,
                     onResumeWorkout = { navController.navigate(ROUTE_ACTIVE_WORKOUT_TIMER) },
-                    onQuickLogShalat = viewModel::logNextPendingPrayer,
-                    onQuickAddReps = { viewModel.adjustReps(20) },
                     onNavigateToIbadah = { navigateToTab(BottomNavTab.IBADAH) },
                     onNavigateToWorkout = { navigateToTab(BottomNavTab.WORKOUT) }
                 )
@@ -122,16 +120,18 @@ fun RuhRagaApp(
                     onTogglePrayerJamaah = viewModel::togglePrayerJamaah,
                     onToggleSunnah = viewModel::toggleSunnahItem,
                     onToggleTilawahComplete = viewModel::toggleTilawahComplete,
-                    onTapTasbih = viewModel::tapTasbih
+                    onTapTasbih = viewModel::tapTasbih,
+                    onToggleTahajjudAlarm = viewModel::toggleTahajjudAlarm,
+                    onAdjustTahajjudTime = viewModel::adjustTahajjudTime,
+                    onAdjustTahajjudSnooze = viewModel::adjustTahajjudSnooze,
+                    onChangeTahajjudVolume = viewModel::setTahajjudAlarmVolume,
+                    onToggleAlarmPreview = viewModel::toggleAlarmPreview
                 )
             }
 
             composable(BottomNavTab.WORKOUT.route) {
                 WorkoutLoggerScreen(
                     state = state,
-                    onSelectExercise = viewModel::selectExercise,
-                    onAdjustReps = viewModel::adjustReps,
-                    onLogSetAndStartRest = viewModel::logSetAndStartRest,
                     onSkipRest = viewModel::skipRestTimer,
                     onOpenFullscreenTimer = { navController.navigate(ROUTE_ACTIVE_WORKOUT_TIMER) },
                     onSelectCardioMode = viewModel::selectCardioMode,
@@ -150,7 +150,10 @@ fun RuhRagaApp(
                 AnalyticsHeatmapScreen(
                     state = state,
                     onSelectPeriod = viewModel::selectAnalyticsPeriod,
-                    onSelectMatrixDay = viewModel::selectMatrixDay
+                    onSelectMatrixDay = viewModel::selectMatrixDay,
+                    onNavigateMonth = viewModel::navigateAnalyticsMonth,
+                    onLongClickDay = viewModel::openDayResume,
+                    onDismissResume = viewModel::dismissDayResume
                 )
             }
 

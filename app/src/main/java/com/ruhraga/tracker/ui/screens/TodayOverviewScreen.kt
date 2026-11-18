@@ -63,8 +63,6 @@ fun TodayOverviewScreen(
     onToggleReminder: () -> Unit,
     onToggleAdhanSound: () -> Unit,
     onResumeWorkout: () -> Unit,
-    onQuickLogShalat: () -> Unit,
-    onQuickAddReps: () -> Unit,
     onNavigateToIbadah: () -> Unit = {},
     onNavigateToWorkout: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -115,12 +113,6 @@ fun TodayOverviewScreen(
         }
         item {
             SevenDayHarmonyMatrixCard(state = state)
-        }
-        item {
-            QuickActionRow(
-                onQuickLogShalat = onQuickLogShalat,
-                onQuickAddReps = onQuickAddReps
-            )
         }
     }
 }
@@ -546,23 +538,11 @@ private fun UpcomingPrayerCard(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "$prayerName Prayer",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = prayerTime,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+                    Text(
+                        text = "$prayerName Prayer",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = locationLabel,
@@ -571,25 +551,40 @@ private fun UpcomingPrayerCard(
                     )
                 }
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Schedule,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(13.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = countdown,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.primary
+                    text = prayerTime,
+                    style = RuhRagaTextStyles.TabularBodyMd.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
                 )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Schedule,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = countdown,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
 

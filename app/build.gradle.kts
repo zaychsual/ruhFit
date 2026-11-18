@@ -47,9 +47,9 @@ android {
         outputs.all {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
             output.outputFileName = if (buildType.name == "debug") {
-                "ruhraga.apk"
+                "ruhfit.apk"
             } else {
-                "ruhraga-${buildType.name}.apk"
+                "ruhfit-${buildType.name}.apk"
             }
         }
     }

@@ -76,7 +76,7 @@ fun RuhRagaTopBar(
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
-                        text = "Ruh & Raga",
+                        text = "Ruh Fit",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,

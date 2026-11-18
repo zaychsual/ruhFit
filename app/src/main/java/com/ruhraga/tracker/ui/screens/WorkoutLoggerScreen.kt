@@ -21,19 +21,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddCircleOutline
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.HourglassBottom
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.Button
@@ -42,6 +46,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -68,9 +76,6 @@ import com.ruhraga.tracker.ui.theme.RuhRagaTheme
 @Composable
 fun WorkoutLoggerScreen(
     state: RuhRagaUiState,
-    onSelectExercise: (ExerciseCategory) -> Unit,
-    onAdjustReps: (Int) -> Unit,
-    onLogSetAndStartRest: () -> Unit,
     onSkipRest: () -> Unit,
     onOpenFullscreenTimer: () -> Unit,
     onSelectCardioMode: (CardioMode) -> Unit,
@@ -113,30 +118,11 @@ fun WorkoutLoggerScreen(
             }
         }
         item {
-            ExerciseSelectorRow(
-                selected = state.selectedExercise,
-                onSelect = onSelectExercise
-            )
-        }
-        item {
-            RepCounterHubCard(
-                state = state,
-                onAdjustReps = onAdjustReps,
-                onLogSetAndStartRest = onLogSetAndStartRest
-            )
-        }
-        item {
             RestTimerBannerCard(
                 restSeconds = state.restSecondsRemaining,
                 onSkipRest = onSkipRest,
                 onOpenFullscreen = onOpenFullscreenTimer
             )
-        }
-        item {
-            TechniqueCueCard()
-        }
-        item {
-            CompletedSetsCard(state = state)
         }
         item {
             CardioMetconCard(
@@ -680,7 +666,7 @@ private fun CardioMetconCard(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Rounded.DirectionsRun,
+                    imageVector = Icons.AutoMirrored.Rounded.DirectionsRun,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.size(20.dp)
@@ -1074,6 +1060,151 @@ private fun DailyWorkoutChecklistSection(
                             modifier = Modifier.weight(1f)
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutAlarmConfigCard(
+    alarmEnabled: Boolean,
+    volume: Float,
+    isPreviewPlaying: Boolean,
+    onToggleAlarm: () -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    onTogglePreview: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.NotificationsActive,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Alarm Selesai Istirahat",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Dering: Electric Eel (electric_eel.mp3)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Switch(
+                checked = alarmEnabled,
+                onCheckedChange = { onToggleAlarm() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.onSecondary,
+                    checkedTrackColor = RuhRagaTheme.extendedColors.ragaVibrantOrange,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                )
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Volume Alarm",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Text(
+                    text = "${(volume * 100).toInt()}%",
+                    style = RuhRagaTextStyles.TabularBodyMd.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            Slider(
+                value = volume,
+                onValueChange = onVolumeChange,
+                enabled = alarmEnabled,
+                colors = SliderDefaults.colors(
+                    thumbColor = RuhRagaTheme.extendedColors.ragaVibrantOrange,
+                    activeTrackColor = RuhRagaTheme.extendedColors.ragaVibrantOrange,
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                )
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(
+                            if (isPreviewPlaying) MaterialTheme.colorScheme.errorContainer
+                            else MaterialTheme.colorScheme.surfaceContainerHigh
+                        )
+                        .clickable(enabled = alarmEnabled, onClick = onTogglePreview)
+                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isPreviewPlaying) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        tint = if (isPreviewPlaying) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isPreviewPlaying) "Stop Dering" else "Tes Dering",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (isPreviewPlaying) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }

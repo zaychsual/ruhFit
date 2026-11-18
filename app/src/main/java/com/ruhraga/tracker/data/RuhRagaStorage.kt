@@ -3,6 +3,7 @@ package com.ruhraga.tracker.data
 import android.content.Context
 import com.ruhraga.tracker.ui.state.CardioMode
 import com.ruhraga.tracker.ui.state.CustomWorkoutItem
+import com.ruhraga.tracker.ui.state.DailyActivityResume
 import com.ruhraga.tracker.ui.state.DayMatrixStatus
 import com.ruhraga.tracker.ui.state.ExerciseCategory
 import com.ruhraga.tracker.ui.state.MatrixDayCell
@@ -148,7 +149,150 @@ class RuhRagaStorage(context: Context) {
         var result = restoreWorkoutPlan(baseState)
         result = restoreMatrix(result, YearMonth.from(date))
         result = restoreDailyLog(result, date)
-        return result
+        return result.copy(displayedMatrixDays = result.matrixDays)
+    }
+
+    fun loadMatrixForMonth(yearMonth: YearMonth): List<MatrixDayCell> {
+        val totalDays = yearMonth.lengthOfMonth()
+        val emptyList = (1..totalDays).map { day ->
+            MatrixDayCell(
+                day = day,
+                status = DayMatrixStatus.REST,
+                ruhPercent = 0,
+                ragaPercent = 0,
+                completionPercent = 0,
+                summary = "Belum ada aktivitas tercatat"
+            )
+        }
+        val raw = prefs.getString("matrix_$yearMonth", null) ?: return emptyList
+        return try {
+            val array = JSONArray(raw)
+            val loadedMap = mutableMapOf<Int, MatrixDayCell>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val day = obj.getInt("day")
+                val status = runCatching {
+                    DayMatrixStatus.valueOf(obj.getString("status"))
+                }.getOrDefault(DayMatrixStatus.REST)
+                loadedMap[day] = MatrixDayCell(
+                    day = day,
+                    status = status,
+                    ruhPercent = obj.optInt("ruhPercent", 0),
+                    ragaPercent = obj.optInt("ragaPercent", 0),
+                    completionPercent = obj.optInt("completionPercent", 0),
+                    summary = obj.optString("summary", "Belum ada aktivitas tercatat")
+                )
+            }
+            emptyList.map { cell -> loadedMap[cell.day] ?: cell }
+        } catch (_: Exception) {
+            emptyList
+        }
+    }
+
+    fun loadDailyActivityResume(
+        date: LocalDate,
+        workoutPlan: List<CustomWorkoutItem>,
+        matrixCell: MatrixDayCell?
+    ): DailyActivityResume? {
+        val raw = prefs.getString("daily_log_$date", null)
+        if (raw == null && (matrixCell == null || matrixCell.status == DayMatrixStatus.REST)) {
+            return null
+        }
+        if (raw == null && matrixCell != null) {
+            return DailyActivityResume(
+                date = date,
+                ruhPercent = matrixCell.ruhPercent,
+                ragaPercent = matrixCell.ragaPercent,
+                harmonyPercent = matrixCell.completionPercent,
+                completedPrayers = emptyList(),
+                completedSunnah = emptyList(),
+                tilawahDone = false,
+                workoutItems = listOf(matrixCell.summary),
+                totalReps = 0,
+                cardioSummary = null
+            )
+        }
+        return try {
+            val obj = JSONObject(raw!!)
+            val prayerLabels = mapOf(
+                "subuh" to "Subuh",
+                "dzuhur" to "Dzuhur",
+                "ashar" to "Ashar",
+                "maghrib" to "Maghrib",
+                "isya" to "Isya"
+            )
+            val completedPrayers = mutableListOf<Pair<String, Boolean>>()
+            val prayersArr = obj.optJSONArray("prayers")
+            if (prayersArr != null) {
+                for (i in 0 until prayersArr.length()) {
+                    val pObj = prayersArr.getJSONObject(i)
+                    if (pObj.optBoolean("isCompleted", false)) {
+                        val id = pObj.getString("id")
+                        completedPrayers.add((prayerLabels[id] ?: id) to pObj.optBoolean("isJamaah", false))
+                    }
+                }
+            }
+
+            val sunnahLabels = mapOf(
+                "tahajjud" to "Tahajjud",
+                "dhuha" to "Dhuha",
+                "rawatib" to "Rawatib",
+                "witir" to "Witir"
+            )
+            val completedSunnah = mutableListOf<String>()
+            val sunnahArr = obj.optJSONArray("sunnah")
+            if (sunnahArr != null) {
+                for (i in 0 until sunnahArr.length()) {
+                    val sObj = sunnahArr.getJSONObject(i)
+                    if (sObj.optBoolean("isCompleted", false)) {
+                        val id = sObj.getString("id")
+                        completedSunnah.add(sunnahLabels[id] ?: id)
+                    }
+                }
+            }
+
+            val tilawahDone = obj.optJSONObject("tilawah")?.optBoolean("isCompletedToday", false) ?: false
+            val planNames = workoutPlan.associateBy { it.id }
+            val workoutItems = mutableListOf<String>()
+            val planArr = obj.optJSONArray("workoutPlanDaily")
+            if (planArr != null) {
+                for (i in 0 until planArr.length()) {
+                    val itemObj = planArr.getJSONObject(i)
+                    if (itemObj.optBoolean("isCompletedToday", false)) {
+                        val id = itemObj.getString("id")
+                        val name = planNames[id]?.name ?: "Latihan"
+                        val sets = itemObj.optInt("sets", 3)
+                        val reps = itemObj.optInt("repsPerSet", 15)
+                        workoutItems.add("$name ($sets set × $reps reps = ${sets * reps} reps)")
+                    }
+                }
+            }
+
+            val totalReps = obj.optInt("totalSessionReps", 0)
+            val cardioDur = obj.optInt("cardioDurationMin", 0)
+            val cardioSummary = if (cardioDur > 0) {
+                val dist = obj.optDouble("cardioDistanceKm", 0.0)
+                val kcal = obj.optInt("cardioCalories", 0)
+                val modeName = obj.optString("cardioMode", "RUN")
+                val modeLabel = runCatching { CardioMode.valueOf(modeName).label }.getOrDefault("Cardio")
+                "$modeLabel • ${"%.1f".format(dist)} km • $cardioDur min • $kcal kcal"
+            } else null
+
+            DailyActivityResume(
+                date = date,
+                ruhPercent = matrixCell?.ruhPercent ?: 0,
+                ragaPercent = matrixCell?.ragaPercent ?: 0,
+                harmonyPercent = matrixCell?.completionPercent ?: 0,
+                completedPrayers = completedPrayers,
+                completedSunnah = completedSunnah,
+                tilawahDone = tilawahDone,
+                workoutItems = workoutItems,
+                totalReps = totalReps,
+                cardioSummary = cardioSummary
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun restoreWorkoutPlan(state: RuhRagaUiState): RuhRagaUiState {

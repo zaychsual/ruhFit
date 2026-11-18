@@ -22,20 +22,30 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.NightsStay
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Spa
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -69,6 +79,11 @@ fun IbadahTrackerScreen(
         onToggleSunnah: (String) -> Unit,
         onToggleTilawahComplete: () -> Unit,
         onTapTasbih: () -> Unit,
+        onToggleTahajjudAlarm: () -> Unit = {},
+        onAdjustTahajjudTime: (Int, Int) -> Unit = { _, _ -> },
+        onAdjustTahajjudSnooze: (Int) -> Unit = {},
+        onChangeTahajjudVolume: (Float) -> Unit = {},
+        onToggleAlarmPreview: () -> Unit = {},
         modifier: Modifier = Modifier
 ) {
     var showQiblaSheet by remember { mutableStateOf(false) }
@@ -150,6 +165,16 @@ fun IbadahTrackerScreen(
             item {
                 SunnahRoutineSection(items = state.sunnahItems, onToggleSunnah = onToggleSunnah)
             }
+            item {
+                TahajjudAlarmConfigCard(
+                        state = state,
+                        onToggleAlarm = onToggleTahajjudAlarm,
+                        onAdjustTime = onAdjustTahajjudTime,
+                        onAdjustSnooze = onAdjustTahajjudSnooze,
+                        onVolumeChange = onChangeTahajjudVolume,
+                        onTogglePreview = onToggleAlarmPreview
+                )
+            }
         }
 
         if (state.selectedIbadahTab == IbadahTab.FARDHU ||
@@ -160,6 +185,8 @@ fun IbadahTrackerScreen(
         }
     }
 }
+
+
 
 @Composable
 private fun IbadahHeroCard(state: RuhRagaUiState, onOpenQibla: () -> Unit) {
@@ -298,6 +325,8 @@ private fun IbadahHeroCard(state: RuhRagaUiState, onOpenQibla: () -> Unit) {
     }
 }
 
+
+
 @Composable
 private fun IbadahSegmentedControl(selectedTab: IbadahTab, onSelectTab: (IbadahTab) -> Unit) {
     Row(
@@ -341,6 +370,8 @@ private fun IbadahSegmentedControl(selectedTab: IbadahTab, onSelectTab: (IbadahT
         }
     }
 }
+
+
 
 @Composable
 private fun PrayerTrackerCard(
@@ -538,8 +569,8 @@ private fun PrayerTrackerCard(
             }
         }
 
-        // Smooth inline Jama'ah / Munfarid selector once prayer is marked complete
-        AnimatedVisibility(visible = prayer.isCompleted) {
+        // Inline Jama'ah / Munfarid selector: selectable before checked, locked after checked
+        AnimatedVisibility(visible = prayer.isAvailable) {
             Row(
                     modifier =
                             Modifier.fillMaxWidth()
@@ -559,7 +590,7 @@ private fun PrayerTrackerCard(
                                                         )
                                                 else MaterialTheme.colorScheme.surfaceContainerLow
                                         )
-                                        .clickable {
+                                        .clickable(enabled = !prayer.isCompleted) {
                                             if (!prayer.isJamaah) {
                                                 haptic.performHapticFeedback(
                                                         HapticFeedbackType.TextHandleMove
@@ -604,7 +635,7 @@ private fun PrayerTrackerCard(
                                                                 .surfaceContainerHigh
                                                 else MaterialTheme.colorScheme.surfaceContainerLow
                                         )
-                                        .clickable {
+                                        .clickable(enabled = !prayer.isCompleted) {
                                             if (prayer.isJamaah) {
                                                 haptic.performHapticFeedback(
                                                         HapticFeedbackType.TextHandleMove
@@ -670,6 +701,8 @@ private fun PrayerTrackerCard(
     }
 }
 
+
+
 @Composable
 private fun SunnahRoutineSection(items: List<SunnahItem>, onToggleSunnah: (String) -> Unit) {
     val completed = items.count { it.isCompleted }
@@ -729,6 +762,8 @@ private fun SunnahRoutineSection(items: List<SunnahItem>, onToggleSunnah: (Strin
         }
     }
 }
+
+
 
 @Composable
 private fun SunnahGridCard(item: SunnahItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -938,6 +973,8 @@ private fun DailyTilawahCard(state: RuhRagaUiState, onToggleComplete: () -> Unit
     }
 }
 
+
+
 @Composable
 private fun EveningAdhkarCard(state: RuhRagaUiState, onTapTasbih: () -> Unit) {
     val tasbih = state.tasbih
@@ -1082,6 +1119,8 @@ private fun EveningAdhkarCard(state: RuhRagaUiState, onTapTasbih: () -> Unit) {
     }
 }
 
+
+
 @Composable
 private fun TasbihPhasePill(
         label: String,
@@ -1144,5 +1183,236 @@ private fun TasbihPhasePill(
                                     .background(accent)
             )
         }
+    }
+}
+
+@Composable
+private fun TahajjudAlarmConfigCard(
+        state: RuhRagaUiState,
+        onToggleAlarm: () -> Unit,
+        onAdjustTime: (Int, Int) -> Unit,
+        onAdjustSnooze: (Int) -> Unit,
+        onVolumeChange: (Float) -> Unit,
+        onTogglePreview: () -> Unit
+) {
+    val timeText = "%02d:%02d".format(state.tahajjudAlarmHour, state.tahajjudAlarmMinute)
+
+    Column(
+            modifier =
+                    Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainer)
+                            .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(
+                        modifier =
+                                Modifier.size(38.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                                MaterialTheme.colorScheme.primary.copy(
+                                                        alpha = 0.14f
+                                                )
+                                        ),
+                        contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                            imageVector = Icons.Rounded.NightsStay,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                            text = "Alarm Shalat Malam",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                            text = "Tahajjud $timeText WIB • Dering: Electric Eel",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Switch(
+                    checked = state.tahajjudAlarmEnabled,
+                    onCheckedChange = { onToggleAlarm() },
+                    colors =
+                            SwitchDefaults.colors(
+                                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    uncheckedTrackColor =
+                                            MaterialTheme.colorScheme.surfaceContainerHighest
+                            )
+            )
+        }
+
+        Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TahajjudStepperBox(
+                    label = "Jam",
+                    valueText = "%02d".format(state.tahajjudAlarmHour),
+                    onMinus = { onAdjustTime(-1, 0) },
+                    onPlus = { onAdjustTime(1, 0) },
+                    modifier = Modifier.weight(1f)
+            )
+            TahajjudStepperBox(
+                    label = "Menit",
+                    valueText = "%02d".format(state.tahajjudAlarmMinute),
+                    onMinus = { onAdjustTime(0, -5) },
+                    onPlus = { onAdjustTime(0, 5) },
+                    modifier = Modifier.weight(1f)
+            )
+            TahajjudStepperBox(
+                    label = "Snooze (5m)",
+                    valueText = "${state.tahajjudSnoozeCount}x",
+                    onMinus = { onAdjustSnooze(-1) },
+                    onPlus = { onAdjustSnooze(1) },
+                    modifier = Modifier.weight(1.1f)
+            )
+        }
+
+        Column(
+                modifier =
+                        Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                            text = "Volume Alarm",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Text(
+                        text = "${(state.tahajjudAlarmVolume * 100).toInt()}%",
+                        style = RuhRagaTextStyles.TabularBodyMd.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Slider(
+                    value = state.tahajjudAlarmVolume,
+                    onValueChange = onVolumeChange,
+                    colors =
+                            SliderDefaults.colors(
+                                    thumbColor = MaterialTheme.colorScheme.primary,
+                                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                                    inactiveTrackColor =
+                                            MaterialTheme.colorScheme.surfaceContainerHighest
+                            )
+            )
+
+            Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+            ) {
+                Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier =
+                                Modifier.clip(CircleShape)
+                                        .background(
+                                                if (state.isAlarmPreviewPlaying)
+                                                        MaterialTheme.colorScheme.errorContainer
+                                                else MaterialTheme.colorScheme.surfaceContainerHigh
+                                        )
+                                        .clickable(onClick = onTogglePreview)
+                                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                ) {
+                    Icon(
+                            imageVector =
+                                    if (state.isAlarmPreviewPlaying) Icons.Rounded.Stop
+                                    else Icons.Rounded.PlayArrow,
+                            contentDescription = null,
+                            tint =
+                                    if (state.isAlarmPreviewPlaying) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                            text =
+                                    if (state.isAlarmPreviewPlaying) "Stop Dering"
+                                    else "Tes Dering",
+                            style =
+                                    MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold
+                                    ),
+                            color =
+                                    if (state.isAlarmPreviewPlaying) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TahajjudStepperBox(
+        label: String,
+        valueText: String,
+        onMinus: () -> Unit,
+        onPlus: () -> Unit,
+        modifier: Modifier = Modifier
+) {
+    Row(
+            modifier =
+                    modifier.clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+                imageVector = Icons.Rounded.Remove,
+                contentDescription = "Kurangi $label",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp).clickable(onClick = onMinus)
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                    text = valueText,
+                    style = RuhRagaTextStyles.TabularBodyMd.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Icon(
+                imageVector = Icons.Rounded.Add,
+                contentDescription = "Tambah $label",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp).clickable(onClick = onPlus)
+        )
     }
 }

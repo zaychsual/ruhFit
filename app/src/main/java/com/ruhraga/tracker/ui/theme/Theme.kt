@@ -107,7 +107,7 @@ object RuhRagaTheme {
 
 @Composable
 fun RuhRagaTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val view = LocalView.current

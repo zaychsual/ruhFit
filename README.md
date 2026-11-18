@@ -1,4 +1,4 @@
-# Ruh & Raga Tracker
+# Ruh Fit
 
 Aplikasi Android berbasis **Kotlin** dan **Jetpack Compose (Material 3)** untuk melacak rutinitas harian **Ruh (Ibadah)** dan **Raga (Calisthenics & Cardio)** dalam satu antarmuka *dark mode* yang fokus dan responsif.
 
@@ -104,7 +104,7 @@ Pastikan perangkat pengembangan sudah memiliki:
      ```
    - Jika **HP dan emulator sama-sama aktif**, sertakan `-s <SERIAL_HP>`:
      ```zsh
-     ./gradlew assembleDebug --no-daemon && ~/Library/Android/sdk/platform-tools/adb -s <SERIAL_HP> install -r --user 0 app/build/outputs/apk/debug/ruhraga.apk && ~/Library/Android/sdk/platform-tools/adb -s <SERIAL_HP> shell am start --user 0 -S -n com.ruhraga.tracker/.MainActivity
+     ./gradlew assembleDebug --no-daemon && ~/Library/Android/sdk/platform-tools/adb -s <SERIAL_HP> install -r --user 0 app/build/outputs/apk/debug/ruhfit.apk && ~/Library/Android/sdk/platform-tools/adb -s <SERIAL_HP> shell am start --user 0 -S -n com.ruhraga.tracker/.MainActivity
      ```
 
 4. **Pantau Logcat (error / debug log) khusus aplikasi di terminal:**
@@ -122,12 +122,12 @@ Pastikan perangkat pengembangan sudah memiliki:
 ```
 Output APK berada di:
 ```text
-app/build/outputs/apk/debug/ruhraga.apk
+app/build/outputs/apk/debug/ruhfit.apk
 ```
 
 Untuk meng-install file APK tersebut secara manual ke emulator/HP yang terhubung:
 ```zsh
-~/Library/Android/sdk/platform-tools/adb install -r app/build/outputs/apk/debug/ruhraga.apk
+~/Library/Android/sdk/platform-tools/adb install -r app/build/outputs/apk/debug/ruhfit.apk
 ```
 
 ### Build Release APK / App Bundle (Untuk Distribusi)

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.RuhRagaTracker" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#0B1326</item>
+    <style name="Theme.RuhRagaTracker" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#F1F5F9</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>

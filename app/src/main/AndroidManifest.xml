@@ -14,6 +14,9 @@
         <receiver
             android:name=".prayer.PrayerAlarmReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".prayer.TahajjudAlarmReceiver"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

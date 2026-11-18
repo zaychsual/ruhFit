@@ -1,8 +1,11 @@
 package com.ruhraga.tracker.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,6 +25,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -30,22 +36,34 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Mosque
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Spa
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.WbTwilight
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ruhraga.tracker.ui.state.AnalyticsPeriod
+import com.ruhraga.tracker.ui.state.DailyActivityResume
 import com.ruhraga.tracker.ui.state.DayMatrixStatus
 import com.ruhraga.tracker.ui.state.MatrixDayCell
 import com.ruhraga.tracker.ui.state.MilestoneItem
@@ -53,14 +71,27 @@ import com.ruhraga.tracker.ui.state.RuhRagaUiState
 import com.ruhraga.tracker.ui.theme.RuhRagaTextStyles
 import com.ruhraga.tracker.ui.theme.RuhRagaTheme
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun AnalyticsHeatmapScreen(
     state: RuhRagaUiState,
     onSelectPeriod: (AnalyticsPeriod) -> Unit,
     onSelectMatrixDay: (Int) -> Unit,
+    onNavigateMonth: (Long) -> Unit = {},
+    onLongClickDay: (Int) -> Unit = {},
+    onDismissResume: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    state.selectedDayResume?.let { resume ->
+        DayActivityResumeSheet(
+            resume = resume,
+            onDismiss = onDismissResume
+        )
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -89,9 +120,12 @@ fun AnalyticsHeatmapScreen(
         item {
             DualDisciplineMatrixCard(
                 monthLabel = state.monthlyMonthLabel,
-                days = state.matrixDays,
+                displayedMonth = state.displayedYearMonth,
+                days = state.displayedMatrixDays,
                 selectedDay = state.selectedMatrixDay,
-                onSelectDay = onSelectMatrixDay
+                onSelectDay = onSelectMatrixDay,
+                onLongClickDay = onLongClickDay,
+                onNavigateMonth = onNavigateMonth
             )
         }
         item {
@@ -483,22 +517,44 @@ private fun QuranTilawahSummaryCard(state: RuhRagaUiState) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DualDisciplineMatrixCard(
     monthLabel: String,
+    displayedMonth: YearMonth,
     days: List<MatrixDayCell>,
     selectedDay: Int,
-    onSelectDay: (Int) -> Unit
+    onSelectDay: (Int) -> Unit,
+    onLongClickDay: (Int) -> Unit,
+    onNavigateMonth: (Long) -> Unit
 ) {
-    val todayDay = LocalDate.now().dayOfMonth
+    val today = LocalDate.now()
+    val isCurrentMonth = displayedMonth == YearMonth.from(today)
+    val canGoNext = displayedMonth.isBefore(YearMonth.now())
     val activeCell = days.firstOrNull { it.day == selectedDay } ?: days.first()
     val dualCount = days.count { it.status == DayMatrixStatus.PERFECT_DUAL }
+    val haptic = LocalHapticFeedback.current
+    var dragDelta by remember { mutableFloatStateOf(0f) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer)
+            .pointerInput(displayedMonth) {
+                detectHorizontalDragGestures(
+                    onDragStart = { dragDelta = 0f },
+                    onHorizontalDrag = { _, dragAmount -> dragDelta += dragAmount },
+                    onDragEnd = {
+                        if (dragDelta > 70f) {
+                            onNavigateMonth(-1)
+                        } else if (dragDelta < -70f && canGoNext) {
+                            onNavigateMonth(1)
+                        }
+                        dragDelta = 0f
+                    }
+                )
+            }
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -507,7 +563,7 @@ private fun DualDisciplineMatrixCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Dual Discipline Matrix",
                     style = MaterialTheme.typography.titleMedium,
@@ -521,23 +577,62 @@ private fun DualDisciplineMatrixCard(
             }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.CheckCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(13.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "$dualCount Dual Days",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable { onNavigateMonth(-1) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                        contentDescription = "Bulan sebelumnya",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (canGoNext) MaterialTheme.colorScheme.surfaceContainerHigh
+                            else MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                        .clickable(enabled = canGoNext) { onNavigateMonth(1) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = "Bulan berikutnya",
+                        tint = if (canGoNext) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "$dualCount",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
 
@@ -563,7 +658,7 @@ private fun DualDisciplineMatrixCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (activeCell.day == todayDay) "Tgl ${activeCell.day} (Today)" else "Tanggal ${activeCell.day}",
+                        text = if (isCurrentMonth && activeCell.day == today.dayOfMonth) "Tgl ${activeCell.day} (Today)" else "Tanggal ${activeCell.day}",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -654,7 +749,13 @@ private fun DualDisciplineMatrixCard(
                                     RoundedCornerShape(10.dp)
                                 ) else Modifier
                             )
-                            .clickable { onSelectDay(cell.day) }
+                            .combinedClickable(
+                                onClick = { onSelectDay(cell.day) },
+                                onLongClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onLongClickDay(cell.day)
+                                }
+                            )
 
                         Box(
                             modifier = cellModifier,
@@ -686,6 +787,199 @@ private fun DualDisciplineMatrixCard(
             MatrixLegendItem(color = RuhRagaTheme.extendedColors.ragaVibrantOrange.copy(alpha = 0.5f), label = "Raga Only")
             MatrixLegendItem(color = MaterialTheme.colorScheme.primary, label = "Perfect Dual")
         }
+
+        Text(
+            text = "Geser atau gunakan < > untuk ganti bulan • Tekan lama tanggal untuk lihat resume",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DayActivityResumeSheet(
+    resume: DailyActivityResume,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val dateFormatted = resume.date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("id", "ID")))
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column {
+                Text(
+                    text = "RESUME AKTIVITAS HARIAN",
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = dateFormatted,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ResumeScoreChip("Ruh", "${resume.ruhPercent}%", MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                ResumeScoreChip("Raga", "${resume.ragaPercent}%", MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
+                ResumeScoreChip("Harmony", "${resume.harmonyPercent}%", MaterialTheme.colorScheme.onSurface, Modifier.weight(1f))
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Spa,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Ruh (Ibadah)",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                if (resume.completedPrayers.isEmpty() && resume.completedSunnah.isEmpty() && !resume.tilawahDone) {
+                    Text(
+                        text = "Belum ada catatan ibadah di hari ini.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    if (resume.completedPrayers.isNotEmpty()) {
+                        val prayersLine = resume.completedPrayers.joinToString(", ") { (name, jamaah) ->
+                            if (jamaah) "$name (Jama'ah)" else name
+                        }
+                        Text(
+                            text = "Shalat: $prayersLine",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    if (resume.completedSunnah.isNotEmpty()) {
+                        Text(
+                            text = "Sunnah: ${resume.completedSunnah.joinToString(", ")}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (resume.tilawahDone) {
+                        Text(
+                            text = "Tilawah: Selesai ✓",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.FitnessCenter,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Raga (Workout)",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                if (resume.workoutItems.isEmpty() && resume.totalReps == 0 && resume.cardioSummary == null) {
+                    Text(
+                        text = "Belum ada catatan latihan di hari ini.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    resume.workoutItems.forEach { line ->
+                        Text(
+                            text = "• $line",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    if (resume.totalReps > 0) {
+                        Text(
+                            text = "Total Volume: ${resume.totalReps} reps",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                    resume.cardioSummary?.let { cardio ->
+                        Text(
+                            text = "Cardio: $cardio",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun ResumeScoreChip(
+    label: String,
+    value: String,
+    valueColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = value,
+            style = RuhRagaTextStyles.TabularBodyMd.copy(fontWeight = FontWeight.Bold),
+            color = valueColor
+        )
     }
 }
 
