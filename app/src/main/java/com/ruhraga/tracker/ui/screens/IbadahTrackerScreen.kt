@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Spa
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.TouchApp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -47,6 +48,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +77,7 @@ fun IbadahTrackerScreen(
         state: RuhRagaUiState,
         onSelectTab: (IbadahTab) -> Unit,
         onTogglePrayerCompleted: (String) -> Unit,
+        onConfirmPrayer: (String, Boolean) -> Unit = { id, _ -> onTogglePrayerCompleted(id) },
         onTogglePrayerJamaah: (String) -> Unit,
         onToggleSunnah: (String) -> Unit,
         onToggleTilawahComplete: () -> Unit,
@@ -87,9 +90,21 @@ fun IbadahTrackerScreen(
         modifier: Modifier = Modifier
 ) {
     var showQiblaSheet by remember { mutableStateOf(false) }
+    var pendingConfirmPrayer by remember { mutableStateOf<PrayerItem?>(null) }
 
     if (showQiblaSheet) {
         QiblaCompassSheet(onDismiss = { showQiblaSheet = false })
+    }
+
+    pendingConfirmPrayer?.let { prayerToConfirm ->
+        PrayerConfirmationDialog(
+                prayer = prayerToConfirm,
+                onDismiss = { pendingConfirmPrayer = null },
+                onConfirm = { isJamaah ->
+                    onConfirmPrayer(prayerToConfirm.id, isJamaah)
+                    pendingConfirmPrayer = null
+                }
+        )
     }
 
     LazyColumn(
@@ -153,7 +168,7 @@ fun IbadahTrackerScreen(
                 PrayerTrackerCard(
                         prayer = prayer,
                         countdownLabel = state.nextPrayerCountdown,
-                        onToggleComplete = { onTogglePrayerCompleted(prayer.id) },
+                        onToggleComplete = { pendingConfirmPrayer = prayer },
                         onToggleJamaah = { onTogglePrayerJamaah(prayer.id) }
                 )
             }
@@ -1415,4 +1430,161 @@ private fun TahajjudStepperBox(
                 modifier = Modifier.size(18.dp).clickable(onClick = onPlus)
         )
     }
+}
+
+@Composable
+private fun PrayerConfirmationDialog(
+        prayer: PrayerItem,
+        onDismiss: () -> Unit,
+        onConfirm: (isJamaah: Boolean) -> Unit
+) {
+    var selectedJamaah by remember(prayer.id) { mutableStateOf(prayer.isJamaah) }
+
+    AlertDialog(
+            onDismissRequest = onDismiss,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            title = {
+                Text(
+                        text = "Konfirmasi Shalat ${prayer.name}",
+                        style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                            text = "${prayer.time} • ${prayer.rakaat} Rakaat",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                            text = "Pilih pelaksanaan shalat sebelum mengunci status:",
+                            style = MaterialTheme.typography.bodySmall
+                    )
+                    Row(
+                            modifier =
+                                    Modifier.fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(
+                                                    MaterialTheme.colorScheme.surfaceContainerLow
+                                            )
+                                            .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                                modifier =
+                                        Modifier.weight(1f)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .background(
+                                                        if (selectedJamaah)
+                                                                MaterialTheme.colorScheme.primary
+                                                                        .copy(alpha = 0.18f)
+                                                        else
+                                                                MaterialTheme.colorScheme
+                                                                        .surfaceContainerLow
+                                                )
+                                                .clickable { selectedJamaah = true }
+                                                .padding(vertical = 10.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                    imageVector = Icons.Rounded.Groups,
+                                    contentDescription = null,
+                                    tint =
+                                            if (selectedJamaah) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                    text = "Jama'ah",
+                                    style =
+                                            MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight =
+                                                            if (selectedJamaah) FontWeight.Bold
+                                                            else FontWeight.Medium
+                                            ),
+                                    color =
+                                            if (selectedJamaah) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Row(
+                                modifier =
+                                        Modifier.weight(1f)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .background(
+                                                        if (!selectedJamaah)
+                                                                MaterialTheme.colorScheme
+                                                                        .surfaceContainerHigh
+                                                        else
+                                                                MaterialTheme.colorScheme
+                                                                        .surfaceContainerLow
+                                                )
+                                                .clickable { selectedJamaah = false }
+                                                .padding(vertical = 10.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                    imageVector = Icons.Rounded.Person,
+                                    contentDescription = null,
+                                    tint =
+                                            if (!selectedJamaah)
+                                                    MaterialTheme.colorScheme.onSurface
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                    text = "Sendiri",
+                                    style =
+                                            MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight =
+                                                            if (!selectedJamaah) FontWeight.Bold
+                                                            else FontWeight.Medium
+                                            ),
+                                    color =
+                                            if (!selectedJamaah)
+                                                    MaterialTheme.colorScheme.onSurface
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Text(
+                            text =
+                                    "Setelah dikonfirmasi, status shalat & pilihan Jama'ah/Sendiri akan dikunci agar tidak berubah jika terpencet.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                        onClick = { onConfirm(selectedJamaah) },
+                        shape = CircleShape,
+                        colors =
+                                ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                ) {
+                    Text(
+                            text = "Ya, Konfirmasi",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(
+                            text = "Batal",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+    )
 }

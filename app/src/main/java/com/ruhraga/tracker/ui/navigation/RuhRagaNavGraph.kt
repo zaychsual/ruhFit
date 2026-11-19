@@ -117,6 +117,7 @@ fun RuhRagaApp(
                     state = state,
                     onSelectTab = viewModel::selectIbadahTab,
                     onTogglePrayerCompleted = viewModel::togglePrayerCompleted,
+                    onConfirmPrayer = viewModel::confirmPrayerCompleted,
                     onTogglePrayerJamaah = viewModel::togglePrayerJamaah,
                     onToggleSunnah = viewModel::toggleSunnahItem,
                     onToggleTilawahComplete = viewModel::toggleTilawahComplete,

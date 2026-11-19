@@ -287,6 +287,10 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun togglePrayerCompleted(prayerId: String) {
+        confirmPrayerCompleted(prayerId, isJamaah = null)
+    }
+
+    fun confirmPrayerCompleted(prayerId: String, isJamaah: Boolean? = null) {
         updateAndSyncTodayMatrix { state ->
             val target =
                     state.prayers.firstOrNull { it.id == prayerId }
@@ -296,7 +300,11 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
             val updated =
                     state.prayers.map { prayer ->
                         if (prayer.id == prayerId) {
-                            prayer.copy(isCompleted = true, completedAt = "Completed now")
+                            prayer.copy(
+                                    isCompleted = true,
+                                    isJamaah = isJamaah ?: prayer.isJamaah,
+                                    completedAt = "Completed now"
+                            )
                         } else {
                             prayer
                         }
