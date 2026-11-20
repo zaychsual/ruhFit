@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -45,6 +46,7 @@ fun RuhRagaTopBar(
     isDarkTheme: Boolean = true,
     onToggleTheme: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -161,6 +163,22 @@ fun RuhRagaTopBar(
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary)
                             .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable(onClick = onSettingsClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Settings,
+                        contentDescription = "Pengaturan",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }

@@ -348,9 +348,12 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
 
     fun toggleSunnahItem(id: String) {
         updateAndSyncTodayMatrix { state ->
+            val target = state.sunnahItems.firstOrNull { it.id == id } ?: return@updateAndSyncTodayMatrix state
+            if (target.isCompleted) return@updateAndSyncTodayMatrix state
+
             val updated =
                     state.sunnahItems.map { item ->
-                        if (item.id == id) item.copy(isCompleted = !item.isCompleted) else item
+                        if (item.id == id) item.copy(isCompleted = true) else item
                     }
             state.copy(sunnahItems = updated)
         }
@@ -402,7 +405,12 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun addWorkoutPlanItem(name: String, sets: Int, repsPerSet: Int) {
+    fun addWorkoutPlanItem(
+            name: String,
+            sets: Int,
+            repsPerSet: Int,
+            isMaster: Boolean = true
+    ) {
         val cleanName = name.trim()
         if (cleanName.isEmpty()) return
         val newItem =
@@ -411,9 +419,15 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
                                 "${cleanName.lowercase().replace(" ", "_")}_${System.currentTimeMillis()}",
                         name = cleanName,
                         sets = sets.coerceIn(1, 20),
-                        repsPerSet = repsPerSet.coerceIn(1, 200)
+                        repsPerSet = repsPerSet.coerceIn(1, 200),
+                        isMaster = isMaster
                 )
-        updateAndSyncTodayMatrix { state -> state.copy(workoutPlan = state.workoutPlan + newItem) }
+        updateAndSyncTodayMatrix { state ->
+            state.copy(
+                    workoutPlan = state.workoutPlan + newItem,
+                    isWorkoutPlanConfigured = if (isMaster) true else state.isWorkoutPlanConfigured
+            )
+        }
     }
 
     fun removeWorkoutPlanItem(id: String) {
@@ -715,29 +729,36 @@ class RuhRagaViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun logMetabolicFinisher() {
+        logCardioActivity(
+                distanceKm = if (_uiState.value.cardioMode == CardioMode.RUN) 1.0f else 0.5f,
+                durationMin = 10
+        )
+    }
+
+    fun logCardioActivity(distanceKm: Float, durationMin: Int) {
+        if (durationMin <= 0) return
         val today = LocalDate.now()
         val currentState = _uiState.value
-        val addDist = if (currentState.cardioMode == CardioMode.RUN) 1.0f else 0.5f
-        val addMin = 10
+        val safeDist = distanceKm.coerceAtLeast(0f)
         // Rumus MET (Compendium of Physical Activities):
         // Kalori = MET * Berat Badan (kg) * Durasi (jam)
         val met = if (currentState.cardioMode == CardioMode.RUN) 9.8f else 11.8f
         val weightKg = currentState.userProfile.weightKg.coerceAtLeast(30f)
-        val addKcal = kotlin.math.round(met * weightKg * (addMin / 60f)).toInt()
+        val addKcal = kotlin.math.round(met * weightKg * (durationMin / 60f)).toInt()
 
         workoutDb.insertCardioEntry(
                 date = today,
                 mode = currentState.cardioMode,
-                distanceKm = addDist,
-                durationMin = addMin,
+                distanceKm = safeDist,
+                durationMin = durationMin,
                 calories = addKcal
         )
         val history = workoutDb.getRecentWorkoutHistory()
 
         updateAndSyncTodayMatrix { state ->
             state.copy(
-                    cardioDistanceKm = state.cardioDistanceKm + addDist,
-                    cardioDurationMin = state.cardioDurationMin + addMin,
+                    cardioDistanceKm = state.cardioDistanceKm + safeDist,
+                    cardioDurationMin = state.cardioDurationMin + durationMin,
                     cardioCalories = state.cardioCalories + addKcal,
                     workoutHistory = history
             )

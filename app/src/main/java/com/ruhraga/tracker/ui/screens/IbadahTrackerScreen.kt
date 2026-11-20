@@ -91,6 +91,7 @@ fun IbadahTrackerScreen(
 ) {
     var showQiblaSheet by remember { mutableStateOf(false) }
     var pendingConfirmPrayer by remember { mutableStateOf<PrayerItem?>(null) }
+    var pendingConfirmSunnah by remember { mutableStateOf<SunnahItem?>(null) }
 
     if (showQiblaSheet) {
         QiblaCompassSheet(onDismiss = { showQiblaSheet = false })
@@ -103,6 +104,17 @@ fun IbadahTrackerScreen(
                 onConfirm = { isJamaah ->
                     onConfirmPrayer(prayerToConfirm.id, isJamaah)
                     pendingConfirmPrayer = null
+                }
+        )
+    }
+
+    pendingConfirmSunnah?.let { sunnahToConfirm ->
+        SunnahConfirmationDialog(
+                item = sunnahToConfirm,
+                onDismiss = { pendingConfirmSunnah = null },
+                onConfirm = {
+                    onToggleSunnah(sunnahToConfirm.id)
+                    pendingConfirmSunnah = null
                 }
         )
     }
@@ -178,16 +190,9 @@ fun IbadahTrackerScreen(
                         state.selectedIbadahTab == IbadahTab.SUNNAH
         ) {
             item {
-                SunnahRoutineSection(items = state.sunnahItems, onToggleSunnah = onToggleSunnah)
-            }
-            item {
-                TahajjudAlarmConfigCard(
-                        state = state,
-                        onToggleAlarm = onToggleTahajjudAlarm,
-                        onAdjustTime = onAdjustTahajjudTime,
-                        onAdjustSnooze = onAdjustTahajjudSnooze,
-                        onVolumeChange = onChangeTahajjudVolume,
-                        onTogglePreview = onToggleAlarmPreview
+                SunnahRoutineSection(
+                        items = state.sunnahItems,
+                        onRequestConfirmSunnah = { item -> pendingConfirmSunnah = item }
                 )
             }
         }
@@ -719,7 +724,10 @@ private fun PrayerTrackerCard(
 
 
 @Composable
-private fun SunnahRoutineSection(items: List<SunnahItem>, onToggleSunnah: (String) -> Unit) {
+private fun SunnahRoutineSection(
+        items: List<SunnahItem>,
+        onRequestConfirmSunnah: (SunnahItem) -> Unit
+) {
     val completed = items.count { it.isCompleted }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -765,7 +773,7 @@ private fun SunnahRoutineSection(items: List<SunnahItem>, onToggleSunnah: (Strin
                     rowItems.forEach { item ->
                         SunnahGridCard(
                                 item = item,
-                                onClick = { onToggleSunnah(item.id) },
+                                onClick = { onRequestConfirmSunnah(item) },
                                 modifier = Modifier.weight(1f)
                         )
                     }
@@ -782,11 +790,30 @@ private fun SunnahRoutineSection(items: List<SunnahItem>, onToggleSunnah: (Strin
 
 @Composable
 private fun SunnahGridCard(item: SunnahItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val haptic = LocalHapticFeedback.current
     Column(
             modifier =
                     modifier.clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainer)
-                            .clickable(onClick = onClick)
+                            .background(
+                                    if (item.isCompleted)
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                                    else MaterialTheme.colorScheme.surfaceContainer
+                            )
+                            .then(
+                                    if (item.isCompleted)
+                                            Modifier.border(
+                                                    1.dp,
+                                                    MaterialTheme.colorScheme.primary.copy(
+                                                            alpha = 0.35f
+                                                    ),
+                                                    RoundedCornerShape(16.dp)
+                                            )
+                                    else Modifier
+                            )
+                            .clickable(enabled = !item.isCompleted) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onClick()
+                            }
                             .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -1565,6 +1592,64 @@ private fun PrayerConfirmationDialog(
             confirmButton = {
                 Button(
                         onClick = { onConfirm(selectedJamaah) },
+                        shape = CircleShape,
+                        colors =
+                                ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                ) {
+                    Text(
+                            text = "Ya, Konfirmasi",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(
+                            text = "Batal",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+    )
+}
+
+@Composable
+private fun SunnahConfirmationDialog(
+        item: SunnahItem,
+        onDismiss: () -> Unit,
+        onConfirm: () -> Unit
+) {
+    AlertDialog(
+            onDismissRequest = onDismiss,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            title = {
+                Text(
+                        text = "Konfirmasi Shalat ${item.title}",
+                        style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                            text = "${item.category} • ${item.detail}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                            text = "Setelah dikonfirmasi, status ${item.title} akan dikunci untuk hari ini agar tidak berubah jika terpencet.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                        onClick = onConfirm,
                         shape = CircleShape,
                         colors =
                                 ButtonDefaults.buttonColors(

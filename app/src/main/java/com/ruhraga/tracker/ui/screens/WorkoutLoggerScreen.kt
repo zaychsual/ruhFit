@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -36,12 +37,15 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -63,6 +67,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,11 +84,9 @@ fun WorkoutLoggerScreen(
     onSkipRest: () -> Unit,
     onOpenFullscreenTimer: () -> Unit,
     onSelectCardioMode: (CardioMode) -> Unit,
-    onLogMetabolicFinisher: () -> Unit,
-    onAddPlanItem: (String, Int, Int) -> Unit = { _, _, _ -> },
-    onRemovePlanItem: (String) -> Unit = {},
-    onFinishPlanSetup: () -> Unit = {},
-    onReopenPlanSetup: () -> Unit = {},
+    onLogCardio: (Float, Int) -> Unit = { _, _ -> },
+    onAddPlanItem: (String, Int, Int, Boolean) -> Unit = { _, _, _, _ -> },
+    onOpenSettings: () -> Unit = {},
     onUpdatePlanSets: (String, Int) -> Unit = { _, _ -> },
     onUpdatePlanReps: (String, Int) -> Unit = { _, _ -> },
     onTogglePlanCompleted: (String) -> Unit = {},
@@ -100,22 +103,14 @@ fun WorkoutLoggerScreen(
             WorkoutHeader(onOpenFullscreenTimer = onOpenFullscreenTimer)
         }
         item {
-            if (!state.isWorkoutPlanConfigured) {
-                WorkoutPlanSetupCard(
-                    planItems = state.workoutPlan,
-                    onAddItem = onAddPlanItem,
-                    onRemoveItem = onRemovePlanItem,
-                    onFinishSetup = onFinishPlanSetup
-                )
-            } else {
-                DailyWorkoutChecklistSection(
-                    items = state.workoutPlan,
-                    onReopenSetup = onReopenPlanSetup,
-                    onUpdateSets = onUpdatePlanSets,
-                    onUpdateReps = onUpdatePlanReps,
-                    onToggleComplete = onTogglePlanCompleted
-                )
-            }
+            DailyWorkoutChecklistSection(
+                items = state.workoutPlan,
+                onOpenSettings = onOpenSettings,
+                onAddExtraExercise = onAddPlanItem,
+                onUpdateSets = onUpdatePlanSets,
+                onUpdateReps = onUpdatePlanReps,
+                onToggleComplete = onTogglePlanCompleted
+            )
         }
         item {
             RestTimerBannerCard(
@@ -128,11 +123,8 @@ fun WorkoutLoggerScreen(
             CardioMetconCard(
                 state = state,
                 onSelectMode = onSelectCardioMode,
-                onLogFinisher = onLogMetabolicFinisher
+                onLogCardio = onLogCardio
             )
-        }
-        item {
-            WorkoutHistoryCard(state = state)
         }
     }
 }
@@ -649,8 +641,19 @@ private fun CompletedSetsCard(state: RuhRagaUiState) {
 private fun CardioMetconCard(
     state: RuhRagaUiState,
     onSelectMode: (CardioMode) -> Unit,
-    onLogFinisher: () -> Unit
+    onLogCardio: (Float, Int) -> Unit
 ) {
+    var distanceInput by remember(state.cardioMode) {
+        mutableStateOf(if (state.cardioMode == CardioMode.RUN) "3.0" else "0.5")
+    }
+    var durationInput by remember { mutableStateOf("20") }
+
+    val parsedDist = distanceInput.replace(',', '.').toFloatOrNull()?.coerceAtLeast(0f) ?: 0f
+    val parsedDur = durationInput.toIntOrNull()?.coerceAtLeast(0) ?: 0
+    val met = if (state.cardioMode == CardioMode.RUN) 9.8f else 11.8f
+    val weightKg = state.userProfile.weightKg.coerceAtLeast(30f)
+    val estimatedKcal = kotlin.math.round(met * weightKg * (parsedDur / 60f)).toInt()
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -673,7 +676,7 @@ private fun CardioMetconCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Cardio & Metcon\nAdd-on",
+                    text = "Cardio & Metcon",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -709,59 +712,145 @@ private fun CardioMetconCard(
             }
         }
 
+        // Direct numeric inputs for friendly cardio logging
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            MetconStatBox(
-                label = "DISTANCE",
-                value = "${state.cardioDistanceKm}",
-                unit = "km",
-                valueColor = MaterialTheme.colorScheme.onSurface,
+            OutlinedTextField(
+                value = distanceInput,
+                onValueChange = { input ->
+                    if (input.length <= 5 && input.all { it.isDigit() || it == '.' || it == ',' }) {
+                        distanceInput = input
+                    }
+                },
+                label = { Text("Jarak (km)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.secondary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
                 modifier = Modifier.weight(1f)
             )
-            MetconStatBox(
-                label = "DURATION",
-                value = "${state.cardioDurationMin}",
-                unit = "min",
-                valueColor = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            MetconStatBox(
-                label = "BURNED",
-                value = "${state.cardioCalories}",
-                unit = "kcal",
-                valueColor = MaterialTheme.colorScheme.secondary,
+            OutlinedTextField(
+                value = durationInput,
+                onValueChange = { input ->
+                    if (input.length <= 3 && input.all { it.isDigit() }) {
+                        durationInput = input
+                    }
+                },
+                label = { Text("Durasi (menit)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.secondary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
                 modifier = Modifier.weight(1f)
             )
         }
 
+        // Quick duration preset chips + live MET estimate
         Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("15", "30", "45").forEach { preset ->
+                    val isSelected = durationInput == preset
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
+                                else MaterialTheme.colorScheme.surfaceContainerLow
+                            )
+                            .clickable { durationInput = preset }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = "${preset}m",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = if (isSelected) MaterialTheme.colorScheme.secondary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "Est. $estimatedKcal kcal",
+                style = RuhRagaTextStyles.TabularBodyMd.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
+
+        Button(
+            onClick = {
+                if (parsedDur > 0) {
+                    onLogCardio(parsedDist, parsedDur)
+                }
+            },
+            enabled = parsedDur > 0,
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .clickable(onClick = onLogFinisher)
-                .padding(vertical = 13.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+                .height(46.dp),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = RuhRagaTheme.extendedColors.ragaVibrantOrange,
+                contentColor = MaterialTheme.colorScheme.onSecondary
+            )
         ) {
             Icon(
                 imageVector = Icons.Rounded.AddCircleOutline,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Log Metabolic Finisher",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                text = "Simpan Cardio",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
             )
         }
 
+        if (state.cardioDurationMin > 0) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                MetconStatBox(
+                    label = "TOTAL JARAK",
+                    value = "%.1f".format(state.cardioDistanceKm),
+                    unit = "km",
+                    valueColor = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                MetconStatBox(
+                    label = "TOTAL DURASI",
+                    value = "${state.cardioDurationMin}",
+                    unit = "min",
+                    valueColor = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                MetconStatBox(
+                    label = "TERBAKAR",
+                    value = "${state.cardioCalories}",
+                    unit = "kcal",
+                    valueColor = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
         Text(
-            text = "Kalori dihitung dengan rumus MET × ${state.userProfile.weightKg.toInt()} kg × durasi (Run: 9.8 MET, Jump Rope: 11.8 MET)",
+            text = "Rumus: MET × ${weightKg.toInt()} kg × durasi (Run: 9.8 MET, Jump Rope: 11.8 MET)",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -937,12 +1026,18 @@ private fun WorkoutPlanSetupCard(
 @Composable
 private fun DailyWorkoutChecklistSection(
     items: List<CustomWorkoutItem>,
-    onReopenSetup: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onAddExtraExercise: (String, Int, Int, Boolean) -> Unit,
     onUpdateSets: (String, Int) -> Unit,
     onUpdateReps: (String, Int) -> Unit,
     onToggleComplete: (String) -> Unit
 ) {
     val completedCount = items.count { it.isCompletedToday }
+    var showAddForm by remember { mutableStateOf(false) }
+    var extraName by remember { mutableStateOf("") }
+    var extraSets by remember { mutableIntStateOf(3) }
+    var extraReps by remember { mutableIntStateOf(15) }
+    var saveToMaster by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -950,7 +1045,7 @@ private fun DailyWorkoutChecklistSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Checklist Latihan Hari Ini",
                     style = MaterialTheme.typography.titleMedium,
@@ -962,26 +1057,177 @@ private fun DailyWorkoutChecklistSection(
                     color = MaterialTheme.colorScheme.secondary
                 )
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f))
+                        .clickable { showAddForm = !showAddForm }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "Tambah",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable(onClick = onOpenSettings)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Settings,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Master",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        if (showAddForm) {
+            Column(
                 modifier = Modifier
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    .clickable(onClick = onReopenSetup)
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f),
+                        RoundedCornerShape(16.dp)
+                    )
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Edit,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Ubah Daftar",
-                    style = MaterialTheme.typography.labelSmall,
+                    text = "Tambah Latihan Ekstra",
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                OutlinedTextField(
+                    value = extraName,
+                    onValueChange = { extraName = it },
+                    label = { Text("Nama Latihan") },
+                    placeholder = { Text("Contoh: Diamond Push-up") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.secondary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    StepperBox(
+                        label = "Set",
+                        value = extraSets,
+                        onMinus = { if (extraSets > 1) extraSets-- },
+                        onPlus = { if (extraSets < 20) extraSets++ },
+                        modifier = Modifier.weight(1f)
+                    )
+                    StepperBox(
+                        label = "Repetisi",
+                        value = extraReps,
+                        onMinus = { if (extraReps > 1) extraReps-- },
+                        onPlus = { if (extraReps < 200) extraReps++ },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { saveToMaster = !saveToMaster },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = saveToMaster,
+                        onCheckedChange = { saveToMaster = it },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = MaterialTheme.colorScheme.secondary
+                        )
+                    )
+                    Text(
+                        text = "Simpan juga ke daftar Master",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Button(
+                    onClick = {
+                        if (extraName.isNotBlank()) {
+                            onAddExtraExercise(extraName, extraSets, extraReps, saveToMaster)
+                            extraName = ""
+                            saveToMaster = false
+                            showAddForm = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RuhRagaTheme.extendedColors.ragaVibrantOrange,
+                        contentColor = MaterialTheme.colorScheme.onSecondary
+                    )
+                ) {
+                    Text(
+                        text = "Tambahkan ke Hari Ini",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+            }
+        }
+
+        if (items.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Belum ada daftar latihan master.",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Atur daftar latihan master di Pengaturan agar muncul otomatis tiap hari, atau klik + Tambah untuk latihan hari ini.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(
+                    onClick = onOpenSettings,
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RuhRagaTheme.extendedColors.ragaVibrantOrange,
+                        contentColor = MaterialTheme.colorScheme.onSecondary
+                    )
+                ) {
+                    Text("Atur Master di Pengaturan", style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
 

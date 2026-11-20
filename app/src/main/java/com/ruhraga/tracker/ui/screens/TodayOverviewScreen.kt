@@ -65,6 +65,7 @@ fun TodayOverviewScreen(
     onResumeWorkout: () -> Unit,
     onNavigateToIbadah: () -> Unit = {},
     onNavigateToWorkout: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -98,8 +99,7 @@ fun TodayOverviewScreen(
                 locationLabel = state.locationLabel,
                 reminderEnabled = state.reminderEnabled,
                 adhanSoundEnabled = state.adhanSoundEnabled,
-                onToggleReminder = onToggleReminder,
-                onToggleAdhanSound = onToggleAdhanSound
+                onOpenSettings = onOpenSettings
             )
         }
         item {
@@ -502,8 +502,7 @@ private fun UpcomingPrayerCard(
     locationLabel: String,
     reminderEnabled: Boolean,
     adhanSoundEnabled: Boolean,
-    onToggleReminder: () -> Unit,
-    onToggleAdhanSound: () -> Unit
+    onOpenSettings: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -589,62 +588,38 @@ private fun UpcomingPrayerCard(
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .clickable(onClick = onOpenSettings)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (reminderEnabled) MaterialTheme.colorScheme.surfaceContainerHigh
-                        else MaterialTheme.colorScheme.surfaceContainerLow
-                    )
-                    .clickable(onClick = onToggleReminder)
-                    .padding(vertical = 11.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = if (reminderEnabled) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsOff,
                     contentDescription = null,
                     tint = if (reminderEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (reminderEnabled) "Reminder On" else "Reminder Off",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = when {
+                        !reminderEnabled -> "Pengingat Shalat Nonaktif"
+                        adhanSoundEnabled -> "Pengingat Aktif • Suara Adzan"
+                        else -> "Pengingat Aktif • Notifikasi Standar"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (adhanSoundEnabled) MaterialTheme.colorScheme.surfaceContainerHigh
-                        else MaterialTheme.colorScheme.surfaceContainerLow
-                    )
-                    .clickable(onClick = onToggleAdhanSound)
-                    .padding(vertical = 11.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (adhanSoundEnabled) Icons.Rounded.VolumeUp else Icons.Rounded.VolumeOff,
-                    contentDescription = null,
-                    tint = if (adhanSoundEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (adhanSoundEnabled) "Adhan On" else "Adhan Sound",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            Text(
+                text = "Atur",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }

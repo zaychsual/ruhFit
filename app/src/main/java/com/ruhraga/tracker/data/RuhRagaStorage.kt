@@ -116,9 +116,11 @@ class RuhRagaStorage(context: Context) {
                 planStatusArray.put(
                     JSONObject().apply {
                         put("id", item.id)
+                        put("name", item.name)
                         put("sets", item.sets)
                         put("repsPerSet", item.repsPerSet)
                         put("isCompletedToday", item.isCompletedToday)
+                        put("isMaster", item.isMaster)
                     }
                 )
             }
@@ -126,7 +128,7 @@ class RuhRagaStorage(context: Context) {
         }
 
         val globalPlanArray = JSONArray()
-        state.workoutPlan.forEach { item ->
+        state.workoutPlan.filter { it.isMaster }.forEach { item ->
             globalPlanArray.put(
                 JSONObject().apply {
                     put("id", item.id)
@@ -431,18 +433,33 @@ class RuhRagaStorage(context: Context) {
             }
 
             val dailyPlanMap = mutableMapOf<String, Triple<Int, Int, Boolean>>()
+            val extraDailyItems = mutableListOf<CustomWorkoutItem>()
             val planArr = obj.optJSONArray("workoutPlanDaily")
             if (planArr != null) {
                 for (i in 0 until planArr.length()) {
                     val itemObj = planArr.getJSONObject(i)
-                    dailyPlanMap[itemObj.getString("id")] = Triple(
-                        itemObj.optInt("sets", 3),
-                        itemObj.optInt("repsPerSet", 15),
-                        itemObj.optBoolean("isCompletedToday", false)
-                    )
+                    val id = itemObj.getString("id")
+                    val sets = itemObj.optInt("sets", 3)
+                    val reps = itemObj.optInt("repsPerSet", 15)
+                    val done = itemObj.optBoolean("isCompletedToday", false)
+                    val isMaster = itemObj.optBoolean("isMaster", true)
+                    if (isMaster) {
+                        dailyPlanMap[id] = Triple(sets, reps, done)
+                    } else {
+                        extraDailyItems.add(
+                            CustomWorkoutItem(
+                                id = id,
+                                name = itemObj.optString("name", "Latihan Tambahan"),
+                                sets = sets,
+                                repsPerSet = reps,
+                                isCompletedToday = done,
+                                isMaster = false
+                            )
+                        )
+                    }
                 }
             }
-            val restoredPlan = state.workoutPlan.map { item ->
+            val restoredMaster = state.workoutPlan.map { item ->
                 val daily = dailyPlanMap[item.id]
                 if (daily != null) {
                     item.copy(
@@ -451,6 +468,9 @@ class RuhRagaStorage(context: Context) {
                         isCompletedToday = daily.third
                     )
                 } else item
+            }
+            val restoredPlan = restoredMaster + extraDailyItems.filter { extra ->
+                restoredMaster.none { it.id == extra.id }
             }
 
             state.copy(

@@ -113,7 +113,8 @@ data class CustomWorkoutItem(
         val name: String,
         val sets: Int = 3,
         val repsPerSet: Int = 15,
-        val isCompletedToday: Boolean = false
+        val isCompletedToday: Boolean = false,
+        val isMaster: Boolean = true
 ) {
     val totalReps: Int
         get() = sets * repsPerSet
